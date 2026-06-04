@@ -237,7 +237,8 @@ pub mod reference_yield_adapter {
         reject_unimplemented_cpi(ctx.remaining_accounts.len())
     }
 
-    /// Real-CPI value refresh route. See `deposit_cpi`: fails loudly, no simulation.
+    /// Real-CPI value refresh route. Supported adapters decode read-only protocol
+    /// account state; unsupported adapters fail loudly with no simulation.
     pub fn current_value_cpi<'info>(
         ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
         adapter_id: [u8; 32],
@@ -245,6 +246,9 @@ pub mod reference_yield_adapter {
         guard_cpi_route(&ctx, adapter_id)?;
         if adapter_id == KAMINO_USDC_ADAPTER_ID {
             return kamino_current_value(ctx, adapter_id);
+        }
+        if adapter_id == MARGINFI_USDC_ADAPTER_ID {
+            return marginfi_current_value(ctx, adapter_id);
         }
         reject_unimplemented_cpi(ctx.remaining_accounts.len())
     }
@@ -655,6 +659,56 @@ fn guard_kamino_cpi_route<'info>(
     Ok(())
 }
 
+fn guard_marginfi_current_value_route<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+    adapter_id: [u8; 32],
+) -> Result<()> {
+    guard_cpi_route(ctx, adapter_id)?;
+    require!(
+        adapter_id == MARGINFI_USDC_ADAPTER_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        ctx.accounts.state.protocol == ProtocolKind::MarginfiUsdc as u8,
+        AdapterError::InvalidProtocol
+    );
+    require_keys_eq!(
+        ctx.accounts.state.protocol_market,
+        MARGINFI_PRODUCTION_GROUP,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.state.underlying_mint,
+        USDC_MINT,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.user_underlying.mint,
+        ctx.accounts.state.underlying_mint,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.mint,
+        ctx.accounts.state.underlying_mint,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.owner,
+        ctx.accounts.state.key(),
+        AdapterError::Unauthorized
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.key(),
+        adapter_underlying_vault_pda(
+            &ctx.accounts.state.key(),
+            &ctx.accounts.token_program.key(),
+            &ctx.accounts.state.underlying_mint
+        ),
+        AdapterError::AdapterMismatch
+    );
+    Ok(())
+}
+
 fn validate_kamino_deposit_accounts<'info>(
     ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
 ) -> Result<()> {
@@ -1012,6 +1066,16 @@ pub const KAMINO_USDC_RESERVE_COLLATERAL_FARM_STATE: Pubkey =
     anchor_lang::solana_program::pubkey!("JAvnB9AKtgPsTEoKmn24Bq64UMoYcrtWtq42HHBdsPkh");
 pub const KAMINO_USDC_OBLIGATION_FARM_STATE: Pubkey =
     anchor_lang::solana_program::pubkey!("FpvYH3vrip5Zaj5C2YPF6hGC17rPC5FLNEzt1ZPBmDzy");
+pub const MARGINFI_USDC_ADAPTER_ID: [u8; 32] = [
+    0x25, 0x8d, 0x1c, 0x90, 0x9d, 0x86, 0x0b, 0x4a, 0x66, 0x11, 0x4a, 0x7f, 0x2c, 0x16, 0x7e, 0xc3,
+    0x24, 0xce, 0xe4, 0x09, 0x05, 0xea, 0x3e, 0xad, 0xa1, 0x89, 0x02, 0xb9, 0xdd, 0x58, 0x3d, 0x58,
+];
+pub const MARGINFI_PROGRAM_ID: Pubkey =
+    anchor_lang::solana_program::pubkey!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
+pub const MARGINFI_PRODUCTION_GROUP: Pubkey =
+    anchor_lang::solana_program::pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8");
+pub const MARGINFI_USDC_BANK: Pubkey =
+    anchor_lang::solana_program::pubkey!("2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB");
 
 // ---------------------------------------------------------------------------
 // Kamino (klend) on-chain account decoding.
@@ -1230,6 +1294,53 @@ fn kamino_current_value<'info>(
     Ok(())
 }
 
+/// Real MarginFi `current_value`: decode the USDC bank's asset share value plus
+/// the state-PDA-owned MarginfiAccount balance and set pooled `total_assets`.
+/// This is read-only against MarginFi; no deposit/withdraw CPI is performed.
+/// `remaining_accounts = [usdc_bank, marginfi_account]`.
+fn marginfi_current_value<'info>(
+    ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+    adapter_id: [u8; 32],
+) -> Result<()> {
+    guard_marginfi_current_value_route(&ctx, adapter_id)?;
+
+    let accounts = ctx.remaining_accounts;
+    require!(accounts.len() == 2, AdapterError::MissingCpiAccounts);
+    let bank_ai = &accounts[0];
+    let marginfi_account_ai = &accounts[1];
+    require_keys_eq!(
+        bank_ai.key(),
+        MARGINFI_USDC_BANK,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        bank_ai.owner == &MARGINFI_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        marginfi_account_ai.owner == &MARGINFI_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+
+    let total_value = {
+        let bank_data = bank_ai.try_borrow_data()?;
+        let account_data = marginfi_account_ai.try_borrow_data()?;
+        marginfi_current_value_from_data(&bank_data[..], &account_data[..], ctx.accounts.state.key())?
+    };
+
+    ctx.accounts.state.total_assets = total_value;
+    ctx.accounts.state.last_update_slot = Clock::get()?.slot;
+    update_position_value(&ctx.accounts.state, &mut ctx.accounts.position)?;
+
+    emit!(AdapterValue {
+        adapter_id,
+        user: ctx.accounts.user.key(),
+        shares: ctx.accounts.position.shares,
+        value_assets: ctx.accounts.position.last_value_assets,
+    });
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // MarginFi (mrgn-v2) on-chain account decoding.
 //
@@ -1393,6 +1504,17 @@ pub fn marginfi_shares_to_assets(
     require!(r2 >> 32 == 0, AdapterError::MathOverflow);
     let assets = ((r1 as u128) >> 32) + ((r2 as u128) << 32);
     u64::try_from(assets).map_err(|_| AdapterError::MathOverflow.into())
+}
+
+pub fn marginfi_current_value_from_data(
+    bank_data: &[u8],
+    marginfi_account_data: &[u8],
+    expected_authority: Pubkey,
+) -> Result<u64> {
+    let asset_share_value_raw = read_marginfi_bank_asset_share_value(bank_data, USDC_MINT)?;
+    let asset_shares_raw =
+        read_marginfi_account_asset_shares(marginfi_account_data, expected_authority, MARGINFI_USDC_BANK)?;
+    marginfi_shares_to_assets(asset_shares_raw, asset_share_value_raw)
 }
 
 /// Anchor instruction discriminator = sha256("global:<method>")[..8].
@@ -2395,5 +2517,34 @@ mod marginfi_decode_tests {
         let value_raw = read_marginfi_bank_asset_share_value(&bank, mint).unwrap();
         let shares_raw = read_marginfi_account_asset_shares(&acct, auth, usdc_bank).unwrap();
         assert_eq!(marginfi_shares_to_assets(shares_raw, value_raw).unwrap(), 1234);
+    }
+
+    #[test]
+    fn current_value_pipeline_uses_pinned_usdc_bank() {
+        let auth = Pubkey::new_unique();
+        let value_1_5 = ONE + (ONE / 2);
+        let bank = build_bank(&USDC_MINT, value_1_5 as i128);
+        let acct = build_account(&auth, &[(1, MARGINFI_USDC_BANK, (7u128 * ONE) as i128)]);
+
+        assert_eq!(marginfi_current_value_from_data(&bank, &acct, auth).unwrap(), 10);
+    }
+
+    #[test]
+    fn current_value_pipeline_allows_zero_shares() {
+        let auth = Pubkey::new_unique();
+        let bank = build_bank(&USDC_MINT, ONE as i128);
+        let acct = build_account(&auth, &[(1, MARGINFI_USDC_BANK, 0)]);
+
+        assert_eq!(marginfi_current_value_from_data(&bank, &acct, auth).unwrap(), 0);
+    }
+
+    #[test]
+    fn current_value_pipeline_rejects_wrong_bank_balance() {
+        let auth = Pubkey::new_unique();
+        let bank = build_bank(&USDC_MINT, ONE as i128);
+        let acct = build_account(&auth, &[(1, Pubkey::new_unique(), (7u128 * ONE) as i128)]);
+
+        assert!(err_msg(marginfi_current_value_from_data(&bank, &acct, auth).unwrap_err())
+            .contains("no active"));
     }
 }
