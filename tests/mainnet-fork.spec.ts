@@ -85,8 +85,8 @@ describe("mainnet-fork readiness", () => {
       "refreshReserve",
       "refreshObligation",
       "refreshObligationFarmsForReserve",
-      "depositReserveLiquidityAndObligationCollateral",
-      "withdrawObligationCollateralAndRedeemReserveCollateral",
+      "depositReserveLiquidityAndObligationCollateralV2",
+      "withdrawObligationCollateralAndRedeemReserveCollateralV2",
     ]) {
       const plan = kaminoPlan(section);
       expect(plan.instruction).toBe(section);
@@ -96,7 +96,7 @@ describe("mainnet-fork readiness", () => {
 
   it("Kamino withdraw plan redeems into the adapter vault and fails loudly on account drift", () => {
     const withdraw = kaminoPlan(
-      "withdrawObligationCollateralAndRedeemReserveCollateral",
+      "withdrawObligationCollateralAndRedeemReserveCollateralV2",
     );
     expect(withdraw.accounts.map((a) => a.name)).toEqual([
       "owner",
@@ -113,6 +113,9 @@ describe("mainnet-fork readiness", () => {
       "collateralTokenProgram",
       "liquidityTokenProgram",
       "instructionSysvarAccount",
+      "obligationFarmUserState",
+      "reserveFarmState",
+      "farmsProgram",
     ]);
 
     const destination = withdraw.accounts.find(

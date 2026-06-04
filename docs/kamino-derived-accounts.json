@@ -823,5 +823,5 @@
       }
     }
   ],
-  "disclaimer": "Kamino CPI is NOT implemented and no mainnet-fork roundtrip has been run. Account derivation only."
+  "disclaimer": "Account derivation only. CPI_IMPLEMENTED remains false; scoped Kamino live-fork evidence is recorded separately in docs/submission.md."
 }

@@ -29,8 +29,8 @@ export const KAMINO_CPI_INSTRUCTION_NAMES = [
   "refreshReserve",
   "refreshObligation",
   "refreshObligationFarmsForReserve",
-  "depositReserveLiquidityAndObligationCollateral",
-  "withdrawObligationCollateralAndRedeemReserveCollateral",
+  "depositReserveLiquidityAndObligationCollateralV2",
+  "withdrawObligationCollateralAndRedeemReserveCollateralV2",
 ] as const;
 
 export type KaminoCpiInstructionName = (typeof KAMINO_CPI_INSTRUCTION_NAMES)[number];
@@ -85,6 +85,55 @@ type IdlInstruction = {
   accounts?: IdlAccount[];
 };
 type Idl = { instructions: IdlInstruction[] };
+
+const SOURCE_BACKED_KLEND_V2_LAYOUTS: Partial<Record<KaminoCpiInstructionName, IdlInstruction>> = {
+  depositReserveLiquidityAndObligationCollateralV2: {
+    name: "depositReserveLiquidityAndObligationCollateralV2",
+    args: [{ name: "liquidityAmount" }],
+    accounts: [
+      { name: "owner", isSigner: true, isMut: true },
+      { name: "obligation", isMut: true },
+      { name: "lendingMarket" },
+      { name: "lendingMarketAuthority" },
+      { name: "reserve", isMut: true },
+      { name: "reserveLiquidityMint" },
+      { name: "reserveLiquiditySupply", isMut: true },
+      { name: "reserveCollateralMint", isMut: true },
+      { name: "reserveDestinationDepositCollateral", isMut: true },
+      { name: "userSourceLiquidity", isMut: true },
+      { name: "placeholderUserDestinationCollateral", isOptional: true },
+      { name: "collateralTokenProgram" },
+      { name: "liquidityTokenProgram" },
+      { name: "instructionSysvarAccount" },
+      { name: "obligationFarmUserState", isMut: true, isOptional: true },
+      { name: "reserveFarmState", isMut: true, isOptional: true },
+      { name: "farmsProgram" },
+    ],
+  },
+  withdrawObligationCollateralAndRedeemReserveCollateralV2: {
+    name: "withdrawObligationCollateralAndRedeemReserveCollateralV2",
+    args: [{ name: "collateralAmount" }],
+    accounts: [
+      { name: "owner", isSigner: true, isMut: true },
+      { name: "obligation", isMut: true },
+      { name: "lendingMarket" },
+      { name: "lendingMarketAuthority" },
+      { name: "withdrawReserve", isMut: true },
+      { name: "reserveLiquidityMint" },
+      { name: "reserveSourceCollateral", isMut: true },
+      { name: "reserveCollateralMint", isMut: true },
+      { name: "reserveLiquiditySupply", isMut: true },
+      { name: "userDestinationLiquidity", isMut: true },
+      { name: "placeholderUserDestinationCollateral", isOptional: true },
+      { name: "collateralTokenProgram" },
+      { name: "liquidityTokenProgram" },
+      { name: "instructionSysvarAccount" },
+      { name: "obligationFarmUserState", isMut: true, isOptional: true },
+      { name: "reserveFarmState", isMut: true, isOptional: true },
+      { name: "farmsProgram" },
+    ],
+  },
+};
 
 /** Load the installed klend IDL (order + flags source of truth). */
 export function loadKlendIdl(): Idl {
@@ -296,7 +345,11 @@ export function kaminoCpiAccountPlan(inputs: BuildPlanInputs): KaminoCpiPlans {
   const idl = loadKlendIdl();
   const byName = (name: string): IdlInstruction => {
     const ix = idl.instructions.find((i) => i.name === name);
-    if (!ix) throw new KaminoPlanError(`klend IDL is missing instruction ${name}`);
+    if (!ix) {
+      const sourceBacked = SOURCE_BACKED_KLEND_V2_LAYOUTS[name as KaminoCpiInstructionName];
+      if (sourceBacked) return sourceBacked;
+      throw new KaminoPlanError(`klend IDL is missing instruction ${name}`);
+    }
     if (!ix.accounts) throw new KaminoPlanError(`klend IDL instruction ${name} has no accounts`);
     return ix;
   };

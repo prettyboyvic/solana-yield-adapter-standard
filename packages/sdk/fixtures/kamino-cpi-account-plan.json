@@ -311,8 +311,8 @@
           }
         ]
       },
-      "depositReserveLiquidityAndObligationCollateral": {
-        "instruction": "depositReserveLiquidityAndObligationCollateral",
+      "depositReserveLiquidityAndObligationCollateralV2": {
+        "instruction": "depositReserveLiquidityAndObligationCollateralV2",
         "argNames": [
           "liquidityAmount"
         ],
@@ -361,7 +361,7 @@
             "name": "reserveLiquidityMint",
             "pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
             "isSigner": false,
-            "isWritable": true,
+            "isWritable": false,
             "optional": false,
             "isNone": false
           },
@@ -428,11 +428,35 @@
             "isWritable": false,
             "optional": false,
             "isNone": false
+          },
+          {
+            "name": "obligationFarmUserState",
+            "pubkey": "FpvYH3vrip5Zaj5C2YPF6hGC17rPC5FLNEzt1ZPBmDzy",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": true,
+            "isNone": false
+          },
+          {
+            "name": "reserveFarmState",
+            "pubkey": "JAvnB9AKtgPsTEoKmn24Bq64UMoYcrtWtq42HHBdsPkh",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": true,
+            "isNone": false
+          },
+          {
+            "name": "farmsProgram",
+            "pubkey": "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
           }
         ]
       },
-      "withdrawObligationCollateralAndRedeemReserveCollateral": {
-        "instruction": "withdrawObligationCollateralAndRedeemReserveCollateral",
+      "withdrawObligationCollateralAndRedeemReserveCollateralV2": {
+        "instruction": "withdrawObligationCollateralAndRedeemReserveCollateralV2",
         "argNames": [
           "collateralAmount"
         ],
@@ -481,7 +505,7 @@
             "name": "reserveLiquidityMint",
             "pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
             "isSigner": false,
-            "isWritable": true,
+            "isWritable": false,
             "optional": false,
             "isNone": false
           },
@@ -544,6 +568,30 @@
           {
             "name": "instructionSysvarAccount",
             "pubkey": "Sysvar1nstructions1111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "obligationFarmUserState",
+            "pubkey": "FpvYH3vrip5Zaj5C2YPF6hGC17rPC5FLNEzt1ZPBmDzy",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": true,
+            "isNone": false
+          },
+          {
+            "name": "reserveFarmState",
+            "pubkey": "JAvnB9AKtgPsTEoKmn24Bq64UMoYcrtWtq42HHBdsPkh",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": true,
+            "isNone": false
+          },
+          {
+            "name": "farmsProgram",
+            "pubkey": "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
             "isSigner": false,
             "isWritable": false,
             "optional": false,

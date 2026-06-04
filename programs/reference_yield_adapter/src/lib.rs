@@ -288,14 +288,14 @@ pub mod reference_yield_adapter {
         ];
         let signer = &[signer_seeds];
         let mut deposit_data =
-            anchor_sighash("deposit_reserve_liquidity_and_obligation_collateral").to_vec();
+            anchor_sighash("deposit_reserve_liquidity_and_obligation_collateral_v2").to_vec();
         deposit_data.extend_from_slice(&amount.to_le_bytes());
         invoke_signed(
             &Instruction {
                 program_id: KAMINO_PROGRAM_ID,
                 accounts: remaining_accounts_to_metas(
                     ctx.remaining_accounts,
-                    &KAMINO_DEPOSIT_LAYOUT,
+                    &KAMINO_DEPOSIT_V2_LAYOUT,
                 ),
                 data: deposit_data,
             },
@@ -407,14 +407,15 @@ pub mod reference_yield_adapter {
         ];
         let signer = &[signer_seeds];
         let mut withdraw_data =
-            anchor_sighash("withdraw_obligation_collateral_and_redeem_reserve_collateral").to_vec();
+            anchor_sighash("withdraw_obligation_collateral_and_redeem_reserve_collateral_v2")
+                .to_vec();
         withdraw_data.extend_from_slice(&collateral_amount.to_le_bytes());
         invoke_signed(
             &Instruction {
                 program_id: KAMINO_PROGRAM_ID,
                 accounts: remaining_accounts_to_metas(
                     ctx.remaining_accounts,
-                    &KAMINO_WITHDRAW_LAYOUT,
+                    &KAMINO_WITHDRAW_V2_LAYOUT,
                 ),
                 data: withdraw_data,
             },
@@ -659,7 +660,7 @@ fn validate_kamino_deposit_accounts<'info>(
 ) -> Result<()> {
     require!(
         account_info_layout_matches(
-            &KAMINO_DEPOSIT_LAYOUT,
+            &KAMINO_DEPOSIT_V2_LAYOUT,
             &remaining_accounts_to_specs(ctx.remaining_accounts)
         ),
         AdapterError::MissingCpiAccounts
@@ -738,6 +739,22 @@ fn validate_kamino_deposit_accounts<'info>(
         anchor_lang::solana_program::sysvar::instructions::ID,
         AdapterError::AdapterMismatch
     );
+    require_keys_eq!(
+        accounts[14].key(),
+        KAMINO_USDC_OBLIGATION_FARM_STATE,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[15].key(),
+        KAMINO_USDC_RESERVE_COLLATERAL_FARM_STATE,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[16].key(),
+        KAMINO_FARMS_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(accounts[16].executable, AdapterError::MissingCpiAccounts);
     Ok(())
 }
 
@@ -746,7 +763,7 @@ fn validate_kamino_withdraw_accounts<'info>(
 ) -> Result<()> {
     require!(
         account_info_layout_matches(
-            &KAMINO_WITHDRAW_LAYOUT,
+            &KAMINO_WITHDRAW_V2_LAYOUT,
             &remaining_accounts_to_specs(ctx.remaining_accounts)
         ),
         AdapterError::MissingCpiAccounts
@@ -825,6 +842,22 @@ fn validate_kamino_withdraw_accounts<'info>(
         anchor_lang::solana_program::sysvar::instructions::ID,
         AdapterError::AdapterMismatch
     );
+    require_keys_eq!(
+        accounts[14].key(),
+        KAMINO_USDC_OBLIGATION_FARM_STATE,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[15].key(),
+        KAMINO_USDC_RESERVE_COLLATERAL_FARM_STATE,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[16].key(),
+        KAMINO_FARMS_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(accounts[16].executable, AdapterError::MissingCpiAccounts);
     Ok(())
 }
 
@@ -879,14 +912,14 @@ pub const KAMINO_INIT_OBLIGATION_LAYOUT: [AccountLayoutSpec; 9] = [
     spec(false, false), // systemProgram
 ];
 
-/// klend `depositReserveLiquidityAndObligationCollateral` account layout (14 accounts).
-pub const KAMINO_DEPOSIT_LAYOUT: [AccountLayoutSpec; 14] = [
+/// klend `depositReserveLiquidityAndObligationCollateralV2` account layout (17 accounts).
+pub const KAMINO_DEPOSIT_V2_LAYOUT: [AccountLayoutSpec; 17] = [
     spec(true, true),   // owner
     spec(false, true),  // obligation
     spec(false, false), // lendingMarket
     spec(false, false), // lendingMarketAuthority
     spec(false, true),  // reserve
-    spec(false, true),  // reserveLiquidityMint
+    spec(false, false), // reserveLiquidityMint
     spec(false, true),  // reserveLiquiditySupply
     spec(false, true),  // reserveCollateralMint
     spec(false, true),  // reserveDestinationDepositCollateral
@@ -895,16 +928,19 @@ pub const KAMINO_DEPOSIT_LAYOUT: [AccountLayoutSpec; 14] = [
     spec(false, false), // collateralTokenProgram
     spec(false, false), // liquidityTokenProgram
     spec(false, false), // instructionSysvarAccount
+    spec(false, true),  // obligationFarmUserState
+    spec(false, true),  // reserveFarmState
+    spec(false, false), // farmsProgram
 ];
 
-/// klend `withdrawObligationCollateralAndRedeemReserveCollateral` account layout (14 accounts).
-pub const KAMINO_WITHDRAW_LAYOUT: [AccountLayoutSpec; 14] = [
+/// klend `withdrawObligationCollateralAndRedeemReserveCollateralV2` account layout (17 accounts).
+pub const KAMINO_WITHDRAW_V2_LAYOUT: [AccountLayoutSpec; 17] = [
     spec(true, true),   // owner
     spec(false, true),  // obligation
     spec(false, false), // lendingMarket
     spec(false, false), // lendingMarketAuthority
     spec(false, true),  // withdrawReserve
-    spec(false, true),  // reserveLiquidityMint
+    spec(false, false), // reserveLiquidityMint
     spec(false, true),  // reserveSourceCollateral
     spec(false, true),  // reserveCollateralMint
     spec(false, true),  // reserveLiquiditySupply
@@ -913,6 +949,9 @@ pub const KAMINO_WITHDRAW_LAYOUT: [AccountLayoutSpec; 14] = [
     spec(false, false), // collateralTokenProgram
     spec(false, false), // liquidityTokenProgram
     spec(false, false), // instructionSysvarAccount
+    spec(false, true),  // obligationFarmUserState
+    spec(false, true),  // reserveFarmState
+    spec(false, false), // farmsProgram
 ];
 
 /// Validate a provided account layout against an expected one. Returns false on a
@@ -945,6 +984,8 @@ pub fn adapter_underlying_vault_pda(
 /// klend (Kamino lending) mainnet program id. The Kamino CPI target.
 pub const KAMINO_PROGRAM_ID: Pubkey =
     anchor_lang::solana_program::pubkey!("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
+pub const KAMINO_FARMS_PROGRAM_ID: Pubkey =
+    anchor_lang::solana_program::pubkey!("FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr");
 pub const ASSOCIATED_TOKEN_PROGRAM_ID: Pubkey =
     anchor_lang::solana_program::pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 pub const KAMINO_USDC_ADAPTER_ID: [u8; 32] = [
@@ -967,6 +1008,10 @@ pub const KAMINO_USDC_RESERVE_COLLATERAL_MINT: Pubkey =
     anchor_lang::solana_program::pubkey!("B8V6WVjPxW1UGwVDfxH2d2r8SyT4cqn7dQRK6XneVa7D");
 pub const KAMINO_USDC_RESERVE_DESTINATION_COLLATERAL: Pubkey =
     anchor_lang::solana_program::pubkey!("3DzjXRfxRm6iejfyyMynR4tScddaanrePJ1NJU2XnPPL");
+pub const KAMINO_USDC_RESERVE_COLLATERAL_FARM_STATE: Pubkey =
+    anchor_lang::solana_program::pubkey!("JAvnB9AKtgPsTEoKmn24Bq64UMoYcrtWtq42HHBdsPkh");
+pub const KAMINO_USDC_OBLIGATION_FARM_STATE: Pubkey =
+    anchor_lang::solana_program::pubkey!("FpvYH3vrip5Zaj5C2YPF6hGC17rPC5FLNEzt1ZPBmDzy");
 
 // ---------------------------------------------------------------------------
 // Kamino (klend) on-chain account decoding.
@@ -1699,18 +1744,18 @@ mod cpi_route_tests {
             KAMINO_INIT_OBLIGATION_LAYOUT.to_vec()
         );
         assert_eq!(
-            fixture_layout("depositReserveLiquidityAndObligationCollateral"),
-            KAMINO_DEPOSIT_LAYOUT.to_vec()
+            fixture_layout("depositReserveLiquidityAndObligationCollateralV2"),
+            KAMINO_DEPOSIT_V2_LAYOUT.to_vec()
         );
         assert_eq!(
-            fixture_layout("withdrawObligationCollateralAndRedeemReserveCollateral"),
-            KAMINO_WITHDRAW_LAYOUT.to_vec()
+            fixture_layout("withdrawObligationCollateralAndRedeemReserveCollateralV2"),
+            KAMINO_WITHDRAW_V2_LAYOUT.to_vec()
         );
     }
 
     #[test]
     fn kamino_usdc_deposit_constants_match_the_committed_fixture() {
-        let keys = fixture_pubkeys("depositReserveLiquidityAndObligationCollateral");
+        let keys = fixture_pubkeys("depositReserveLiquidityAndObligationCollateralV2");
         assert_eq!(keys[1], KAMINO_USDC_OBLIGATION.to_string());
         assert_eq!(keys[2], KAMINO_MAIN_MARKET.to_string());
         assert_eq!(keys[3], KAMINO_MAIN_MARKET_AUTHORITY.to_string());
@@ -1729,11 +1774,17 @@ mod cpi_route_tests {
             keys[13],
             anchor_lang::solana_program::sysvar::instructions::ID.to_string()
         );
+        assert_eq!(keys[14], KAMINO_USDC_OBLIGATION_FARM_STATE.to_string());
+        assert_eq!(
+            keys[15],
+            KAMINO_USDC_RESERVE_COLLATERAL_FARM_STATE.to_string()
+        );
+        assert_eq!(keys[16], KAMINO_FARMS_PROGRAM_ID.to_string());
     }
 
     #[test]
     fn kamino_usdc_withdraw_constants_match_the_committed_fixture() {
-        let keys = fixture_pubkeys("withdrawObligationCollateralAndRedeemReserveCollateral");
+        let keys = fixture_pubkeys("withdrawObligationCollateralAndRedeemReserveCollateralV2");
         assert_eq!(keys[1], KAMINO_USDC_OBLIGATION.to_string());
         assert_eq!(keys[2], KAMINO_MAIN_MARKET.to_string());
         assert_eq!(keys[3], KAMINO_MAIN_MARKET_AUTHORITY.to_string());
@@ -1755,6 +1806,12 @@ mod cpi_route_tests {
             keys[13],
             anchor_lang::solana_program::sysvar::instructions::ID.to_string()
         );
+        assert_eq!(keys[14], KAMINO_USDC_OBLIGATION_FARM_STATE.to_string());
+        assert_eq!(
+            keys[15],
+            KAMINO_USDC_RESERVE_COLLATERAL_FARM_STATE.to_string()
+        );
+        assert_eq!(keys[16], KAMINO_FARMS_PROGRAM_ID.to_string());
     }
 
     #[test]
@@ -1783,16 +1840,16 @@ mod cpi_route_tests {
 
     #[test]
     fn remaining_account_info_layout_allows_inner_pda_signer() {
-        let mut outer_infos = KAMINO_DEPOSIT_LAYOUT;
+        let mut outer_infos = KAMINO_DEPOSIT_V2_LAYOUT;
         outer_infos[0].is_signer = false; // state PDA signs only inside invoke_signed
         assert!(account_info_layout_matches(
-            &KAMINO_DEPOSIT_LAYOUT,
+            &KAMINO_DEPOSIT_V2_LAYOUT,
             &outer_infos
         ));
 
         outer_infos[1].is_writable = false;
         assert!(!account_info_layout_matches(
-            &KAMINO_DEPOSIT_LAYOUT,
+            &KAMINO_DEPOSIT_V2_LAYOUT,
             &outer_infos
         ));
     }

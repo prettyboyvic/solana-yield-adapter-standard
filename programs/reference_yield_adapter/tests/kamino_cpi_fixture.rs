@@ -8,8 +8,8 @@ const EXPECTED_PLANS: [&str; 7] = [
     "refreshReserve",
     "refreshObligation",
     "refreshObligationFarmsForReserve",
-    "depositReserveLiquidityAndObligationCollateral",
-    "withdrawObligationCollateralAndRedeemReserveCollateral",
+    "depositReserveLiquidityAndObligationCollateralV2",
+    "withdrawObligationCollateralAndRedeemReserveCollateralV2",
 ];
 
 #[test]
@@ -51,7 +51,7 @@ fn kamino_fixture_names_liquidity_accounts_for_deposit_and_withdraw() {
     assert!(
         has_account(
             plans
-                .get("depositReserveLiquidityAndObligationCollateral")
+                .get("depositReserveLiquidityAndObligationCollateralV2")
                 .expect("deposit plan"),
             "userSourceLiquidity"
         ),
@@ -60,7 +60,7 @@ fn kamino_fixture_names_liquidity_accounts_for_deposit_and_withdraw() {
     assert!(
         has_account(
             plans
-                .get("withdrawObligationCollateralAndRedeemReserveCollateral")
+                .get("withdrawObligationCollateralAndRedeemReserveCollateralV2")
                 .expect("withdraw plan"),
             "userDestinationLiquidity"
         ),

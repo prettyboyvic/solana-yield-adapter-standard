@@ -23,8 +23,8 @@ use serde_json::Value;
 const FIXTURE_JSON: &str =
     include_str!("../../../packages/sdk/fixtures/kamino-cpi-account-plan.json");
 
-const DEPOSIT: &str = "depositReserveLiquidityAndObligationCollateral";
-const WITHDRAW: &str = "withdrawObligationCollateralAndRedeemReserveCollateral";
+const DEPOSIT: &str = "depositReserveLiquidityAndObligationCollateralV2";
+const WITHDRAW: &str = "withdrawObligationCollateralAndRedeemReserveCollateralV2";
 
 /// Test-only mirror of the subset of `AccountInfo` the validator needs.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -432,7 +432,7 @@ async function main() {
   map.reserveCount = allReserves.length;
   map.reserveEnumeration = debugList;
   map.disclaimer =
-    "Kamino CPI is NOT implemented and no mainnet-fork roundtrip has been run. Account derivation only.";
+    "Account derivation only. CPI_IMPLEMENTED remains false; scoped Kamino live-fork evidence is recorded separately in docs/submission.md.";
 
   // Exit codes: 3 = base account map incomplete; 4 = base ok but CPI prereqs not
   // ready (loud signal); 0 = base ok and CPI prereqs READY.
