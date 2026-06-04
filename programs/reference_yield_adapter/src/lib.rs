@@ -243,6 +243,9 @@ pub mod reference_yield_adapter {
         adapter_id: [u8; 32],
     ) -> Result<()> {
         guard_cpi_route(&ctx, adapter_id)?;
+        if adapter_id == KAMINO_USDC_ADAPTER_ID {
+            return kamino_current_value(ctx, adapter_id);
+        }
         reject_unimplemented_cpi(ctx.remaining_accounts.len())
     }
 
@@ -965,6 +968,223 @@ pub const KAMINO_USDC_RESERVE_COLLATERAL_MINT: Pubkey =
 pub const KAMINO_USDC_RESERVE_DESTINATION_COLLATERAL: Pubkey =
     anchor_lang::solana_program::pubkey!("3DzjXRfxRm6iejfyyMynR4tScddaanrePJ1NJU2XnPPL");
 
+// ---------------------------------------------------------------------------
+// Kamino (klend) on-chain account decoding.
+//
+// Byte offsets and the collateral->liquidity formula come from the official,
+// version-pinned `@kamino-finance/klend-sdk@3.2.26` Borsh codegen (the same SDK
+// the repo already uses for account derivation). No klend Rust crate is pulled
+// in: we read only the few fixed-offset scalar fields we need. Scaled-fraction
+// (`*Sf`) fields use klend's `Fraction` scale of 2^60.
+//
+// These helpers are pure and unit-tested against synthetic bytes. An off-chain
+// oracle test (decode the same raw mainnet bytes with klend-sdk) is expected to
+// agree within <= 1 lamport on the final `assets` value (option A precision:
+// checked u128, reduce the scaled-fraction sum by 2^60 with a single floor).
+const KAMINO_RESERVE_DISCRIMINATOR: [u8; 8] = [43, 242, 204, 202, 26, 247, 59, 127];
+const KAMINO_OBLIGATION_DISCRIMINATOR: [u8; 8] = [168, 206, 141, 106, 88, 76, 172, 167];
+const KAMINO_SF_SHIFT: u32 = 60;
+
+// Reserve field offsets (raw account data, incl. the 8-byte anchor discriminator).
+const RES_AVAILABLE_AMOUNT_OFF: usize = 224; // u64  -> 224..232
+const RES_BORROWED_AMOUNT_SF_OFF: usize = 232; // u128 -> 232..248
+const RES_ACC_PROTOCOL_FEES_SF_OFF: usize = 344; // u128 -> 344..360
+const RES_ACC_REFERRER_FEES_SF_OFF: usize = 360; // u128 -> 360..376
+const RES_PENDING_REFERRER_FEES_SF_OFF: usize = 376; // u128 -> 376..392
+const RES_COLLATERAL_MINT_TOTAL_SUPPLY_OFF: usize = 2592; // u64 -> 2592..2600
+const KAMINO_RESERVE_MIN_LEN: usize = 2600;
+
+// Obligation field offsets.
+const OBL_OWNER_OFF: usize = 64; // pubkey -> 64..96
+const OBL_DEPOSITS_START: usize = 96;
+const OBL_DEPOSIT_SLOT_SIZE: usize = 136;
+const OBL_DEPOSIT_COUNT: usize = 8;
+const OBL_DEPOSIT_RESERVE_OFF: usize = 0; // within slot: 0..32
+const OBL_DEPOSIT_AMOUNT_OFF: usize = 32; // within slot: 32..40
+const KAMINO_OBLIGATION_MIN_LEN: usize =
+    OBL_DEPOSITS_START + OBL_DEPOSIT_COUNT * OBL_DEPOSIT_SLOT_SIZE; // 96 + 8*136 = 1184
+
+fn read_u64_le(data: &[u8], offset: usize) -> Result<u64> {
+    let end = offset
+        .checked_add(8)
+        .ok_or(AdapterError::KaminoAccountDataTooShort)?;
+    let bytes = data
+        .get(offset..end)
+        .ok_or(AdapterError::KaminoAccountDataTooShort)?;
+    let array: [u8; 8] = bytes
+        .try_into()
+        .map_err(|_| AdapterError::KaminoAccountDataTooShort)?;
+    Ok(u64::from_le_bytes(array))
+}
+
+fn read_u128_le(data: &[u8], offset: usize) -> Result<u128> {
+    let end = offset
+        .checked_add(16)
+        .ok_or(AdapterError::KaminoAccountDataTooShort)?;
+    let bytes = data
+        .get(offset..end)
+        .ok_or(AdapterError::KaminoAccountDataTooShort)?;
+    let array: [u8; 16] = bytes
+        .try_into()
+        .map_err(|_| AdapterError::KaminoAccountDataTooShort)?;
+    Ok(u128::from_le_bytes(array))
+}
+
+/// Decode the refreshed klend USDC `Reserve` and return
+/// `(total_liquidity_supply_lamports, collateral_mint_total_supply)`.
+///
+/// `total_supply = available + borrowed - accProtocolFees - accReferrerFees
+///   - pendingReferrerFees`, where every `*Sf` term is a 2^60-scaled fraction and
+/// `available` is plain lamports. We accumulate in 2^60 scale and reduce once
+/// (single floor) to stay within 1 lamport of klend-sdk's `Decimal` math while
+/// using only checked `u128`.
+pub fn read_kamino_reserve_total_supply_and_mint_supply(data: &[u8]) -> Result<(u128, u64)> {
+    require!(
+        data.len() >= KAMINO_RESERVE_MIN_LEN,
+        AdapterError::KaminoAccountDataTooShort
+    );
+    require!(
+        data[..8] == KAMINO_RESERVE_DISCRIMINATOR,
+        AdapterError::KaminoBadDiscriminator
+    );
+
+    let available_sf = (read_u64_le(data, RES_AVAILABLE_AMOUNT_OFF)? as u128)
+        .checked_mul(1u128 << KAMINO_SF_SHIFT)
+        .ok_or(AdapterError::MathOverflow)?;
+    let borrowed_sf = read_u128_le(data, RES_BORROWED_AMOUNT_SF_OFF)?;
+    let acc_protocol_sf = read_u128_le(data, RES_ACC_PROTOCOL_FEES_SF_OFF)?;
+    let acc_referrer_sf = read_u128_le(data, RES_ACC_REFERRER_FEES_SF_OFF)?;
+    let pending_referrer_sf = read_u128_le(data, RES_PENDING_REFERRER_FEES_SF_OFF)?;
+    let mint_total_supply = read_u64_le(data, RES_COLLATERAL_MINT_TOTAL_SUPPLY_OFF)?;
+
+    let total_supply_sf = available_sf
+        .checked_add(borrowed_sf)
+        .ok_or(AdapterError::MathOverflow)?
+        .checked_sub(acc_protocol_sf)
+        .ok_or(AdapterError::KaminoTotalSupplyUnderflow)?
+        .checked_sub(acc_referrer_sf)
+        .ok_or(AdapterError::KaminoTotalSupplyUnderflow)?
+        .checked_sub(pending_referrer_sf)
+        .ok_or(AdapterError::KaminoTotalSupplyUnderflow)?;
+    let total_supply = total_supply_sf >> KAMINO_SF_SHIFT;
+    Ok((total_supply, mint_total_supply))
+}
+
+/// Scan the klend `Obligation` deposits for `deposit_reserve` and return the
+/// deposited collateral (cToken) amount. Verifies the account discriminator and
+/// that the obligation `owner` equals `expected_owner` (the adapter state PDA).
+pub fn read_kamino_obligation_collateral(
+    data: &[u8],
+    expected_owner: Pubkey,
+    deposit_reserve: Pubkey,
+) -> Result<u64> {
+    require!(
+        data.len() >= KAMINO_OBLIGATION_MIN_LEN,
+        AdapterError::KaminoAccountDataTooShort
+    );
+    require!(
+        data[..8] == KAMINO_OBLIGATION_DISCRIMINATOR,
+        AdapterError::KaminoBadDiscriminator
+    );
+
+    let owner_bytes = data
+        .get(OBL_OWNER_OFF..OBL_OWNER_OFF + 32)
+        .ok_or(AdapterError::KaminoAccountDataTooShort)?;
+    require!(
+        owner_bytes == expected_owner.as_ref(),
+        AdapterError::KaminoObligationOwnerMismatch
+    );
+
+    let reserve_ref = deposit_reserve.as_ref();
+    for i in 0..OBL_DEPOSIT_COUNT {
+        let slot = OBL_DEPOSITS_START + i * OBL_DEPOSIT_SLOT_SIZE;
+        let reserve_off = slot + OBL_DEPOSIT_RESERVE_OFF;
+        let reserve_bytes = data
+            .get(reserve_off..reserve_off + 32)
+            .ok_or(AdapterError::KaminoAccountDataTooShort)?;
+        if reserve_bytes == reserve_ref {
+            return read_u64_le(data, slot + OBL_DEPOSIT_AMOUNT_OFF);
+        }
+    }
+    err!(AdapterError::KaminoDepositReserveNotFound)
+}
+
+/// Convert deposited collateral (cTokens) to underlying assets (USDC lamports):
+/// `assets = deposited * total_supply / mint_total_supply`, rounded down.
+pub fn kamino_collateral_to_assets(
+    deposited: u64,
+    total_supply: u128,
+    mint_total_supply: u64,
+) -> Result<u64> {
+    require!(
+        mint_total_supply > 0,
+        AdapterError::KaminoZeroCollateralSupply
+    );
+    require!(total_supply > 0, AdapterError::KaminoZeroTotalSupply);
+    let assets = (deposited as u128)
+        .checked_mul(total_supply)
+        .ok_or(AdapterError::MathOverflow)?
+        .checked_div(mint_total_supply as u128)
+        .ok_or(AdapterError::MathOverflow)?;
+    u64::try_from(assets).map_err(|_| AdapterError::MathOverflow.into())
+}
+
+/// Real Kamino `current_value`: decode the refreshed reserve + obligation and set
+/// pooled `total_assets` to the USDC value of the obligation's collateral. This is
+/// read-only against klend (no CPI/mutation of Kamino state); only the adapter's
+/// own pooled accounting is updated. `remaining_accounts = [usdc_reserve, obligation]`.
+fn kamino_current_value<'info>(
+    ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+    adapter_id: [u8; 32],
+) -> Result<()> {
+    guard_kamino_cpi_route(&ctx, adapter_id)?;
+
+    let accounts = ctx.remaining_accounts;
+    require!(accounts.len() == 2, AdapterError::MissingCpiAccounts);
+    let reserve_ai = &accounts[0];
+    let obligation_ai = &accounts[1];
+    require_keys_eq!(
+        reserve_ai.key(),
+        KAMINO_USDC_RESERVE,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        obligation_ai.key(),
+        KAMINO_USDC_OBLIGATION,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        reserve_ai.owner == &KAMINO_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        obligation_ai.owner == &KAMINO_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+
+    let (total_supply, mint_total_supply) = {
+        let data = reserve_ai.try_borrow_data()?;
+        read_kamino_reserve_total_supply_and_mint_supply(&data[..])?
+    };
+    let deposited = {
+        let data = obligation_ai.try_borrow_data()?;
+        read_kamino_obligation_collateral(&data[..], ctx.accounts.state.key(), KAMINO_USDC_RESERVE)?
+    };
+    let total_value = kamino_collateral_to_assets(deposited, total_supply, mint_total_supply)?;
+
+    ctx.accounts.state.total_assets = total_value;
+    ctx.accounts.state.last_update_slot = Clock::get()?.slot;
+    update_position_value(&ctx.accounts.state, &mut ctx.accounts.position)?;
+
+    emit!(AdapterValue {
+        adapter_id,
+        user: ctx.accounts.user.key(),
+        shares: ctx.accounts.position.shares,
+        value_assets: ctx.accounts.position.last_value_assets,
+    });
+    Ok(())
+}
+
 /// Anchor instruction discriminator = sha256("global:<method>")[..8].
 fn anchor_sighash(method: &str) -> [u8; 8] {
     let digest = hash(format!("global:{method}").as_bytes()).to_bytes();
@@ -1406,6 +1626,20 @@ pub enum AdapterError {
     CpiNotImplemented,
     #[msg("Kamino withdraw CPI supports only full-position/full-pool redemption until reserve exchange-rate decoding is implemented")]
     KaminoPartialWithdrawUnsupported,
+    #[msg("Kamino account data is shorter than the expected klend layout")]
+    KaminoAccountDataTooShort,
+    #[msg("Kamino account discriminator does not match the expected klend account")]
+    KaminoBadDiscriminator,
+    #[msg("Kamino obligation owner does not match the adapter state PDA")]
+    KaminoObligationOwnerMismatch,
+    #[msg("Kamino obligation has no deposit for the expected reserve")]
+    KaminoDepositReserveNotFound,
+    #[msg("Kamino reserve collateral mint total supply is zero")]
+    KaminoZeroCollateralSupply,
+    #[msg("Kamino reserve total liquidity supply is zero")]
+    KaminoZeroTotalSupply,
+    #[msg("Kamino reserve fee reduction underflowed total liquidity supply")]
+    KaminoTotalSupplyUnderflow,
 }
 
 #[cfg(test)]
@@ -1600,5 +1834,143 @@ mod cpi_route_tests {
         assert_ne!(um, deposit);
         assert_ne!(ob, deposit);
         assert_ne!(deposit, withdraw);
+    }
+}
+
+#[cfg(test)]
+mod kamino_decode_tests {
+    use super::*;
+
+    fn put_u64(buf: &mut [u8], off: usize, v: u64) {
+        buf[off..off + 8].copy_from_slice(&v.to_le_bytes());
+    }
+    fn put_u128(buf: &mut [u8], off: usize, v: u128) {
+        buf[off..off + 16].copy_from_slice(&v.to_le_bytes());
+    }
+    fn put_pubkey(buf: &mut [u8], off: usize, k: &Pubkey) {
+        buf[off..off + 32].copy_from_slice(k.as_ref());
+    }
+    fn err_msg(e: anchor_lang::error::Error) -> String {
+        match e {
+            anchor_lang::error::Error::AnchorError(ae) => ae.error_msg,
+            _ => String::new(),
+        }
+    }
+
+    #[test]
+    fn reserve_decoder_reads_exact_offsets_and_floors_once() {
+        let mut data = vec![0u8; KAMINO_RESERVE_MIN_LEN];
+        data[..8].copy_from_slice(&KAMINO_RESERVE_DISCRIMINATOR);
+        put_u64(&mut data, RES_AVAILABLE_AMOUNT_OFF, 1_000_000);
+        // 5.5 in 2^60 scale: exercises single-floor reduction of fractional bits.
+        put_u128(
+            &mut data,
+            RES_BORROWED_AMOUNT_SF_OFF,
+            (5u128 << KAMINO_SF_SHIFT) | (1u128 << (KAMINO_SF_SHIFT - 1)),
+        );
+        put_u128(
+            &mut data,
+            RES_ACC_PROTOCOL_FEES_SF_OFF,
+            2u128 << KAMINO_SF_SHIFT,
+        );
+        put_u128(
+            &mut data,
+            RES_ACC_REFERRER_FEES_SF_OFF,
+            1u128 << KAMINO_SF_SHIFT,
+        );
+        put_u128(&mut data, RES_PENDING_REFERRER_FEES_SF_OFF, 0);
+        put_u64(&mut data, RES_COLLATERAL_MINT_TOTAL_SUPPLY_OFF, 800_000);
+
+        let (total_supply, mint) =
+            read_kamino_reserve_total_supply_and_mint_supply(&data).unwrap();
+        // floor(1_000_000 + 5.5 - 2 - 1 - 0) = 1_000_002
+        assert_eq!(total_supply, 1_000_002);
+        assert_eq!(mint, 800_000);
+    }
+
+    #[test]
+    fn reserve_decoder_rejects_bad_discriminator_and_short_data() {
+        let mut data = vec![0u8; KAMINO_RESERVE_MIN_LEN];
+        assert!(err_msg(
+            read_kamino_reserve_total_supply_and_mint_supply(&data).unwrap_err()
+        )
+        .contains("discriminator"));
+        data[..8].copy_from_slice(&KAMINO_RESERVE_DISCRIMINATOR);
+        let short = &data[..KAMINO_RESERVE_MIN_LEN - 1];
+        assert!(err_msg(
+            read_kamino_reserve_total_supply_and_mint_supply(short).unwrap_err()
+        )
+        .contains("shorter"));
+    }
+
+    fn build_obligation(owner: &Pubkey, slots: &[(Pubkey, u64)]) -> Vec<u8> {
+        let mut data = vec![0u8; KAMINO_OBLIGATION_MIN_LEN];
+        data[..8].copy_from_slice(&KAMINO_OBLIGATION_DISCRIMINATOR);
+        put_pubkey(&mut data, OBL_OWNER_OFF, owner);
+        for (i, (reserve, amount)) in slots.iter().enumerate() {
+            let slot = OBL_DEPOSITS_START + i * OBL_DEPOSIT_SLOT_SIZE;
+            put_pubkey(&mut data, slot + OBL_DEPOSIT_RESERVE_OFF, reserve);
+            put_u64(&mut data, slot + OBL_DEPOSIT_AMOUNT_OFF, *amount);
+        }
+        data
+    }
+
+    #[test]
+    fn obligation_scanner_finds_correct_slot() {
+        let owner = Pubkey::new_unique();
+        let other = Pubkey::new_unique();
+        let target = KAMINO_USDC_RESERVE;
+        // Target sits in slot 3, behind an unrelated reserve in slot 0.
+        let data = build_obligation(
+            &owner,
+            &[
+                (other, 111),
+                (Pubkey::default(), 0),
+                (Pubkey::default(), 0),
+                (target, 424_242),
+            ],
+        );
+        let amount = read_kamino_obligation_collateral(&data, owner, target).unwrap();
+        assert_eq!(amount, 424_242);
+    }
+
+    #[test]
+    fn obligation_scanner_rejects_owner_mismatch() {
+        let owner = Pubkey::new_unique();
+        let data = build_obligation(&owner, &[(KAMINO_USDC_RESERVE, 5)]);
+        let wrong = Pubkey::new_unique();
+        assert!(err_msg(
+            read_kamino_obligation_collateral(&data, wrong, KAMINO_USDC_RESERVE).unwrap_err()
+        )
+        .contains("owner"));
+    }
+
+    #[test]
+    fn obligation_scanner_missing_reserve_errors() {
+        let owner = Pubkey::new_unique();
+        let data = build_obligation(&owner, &[(Pubkey::new_unique(), 5)]);
+        assert!(err_msg(
+            read_kamino_obligation_collateral(&data, owner, KAMINO_USDC_RESERVE).unwrap_err()
+        )
+        .contains("no deposit"));
+    }
+
+    #[test]
+    fn collateral_to_assets_rounds_down_and_guards() {
+        // 1000 cTokens * 2500 liquidity / 800 supply = 3125 (exact)
+        assert_eq!(kamino_collateral_to_assets(1000, 2500, 800).unwrap(), 3125);
+        // rounds down: 10 * 3 / 4 = 7.5 -> 7
+        assert_eq!(kamino_collateral_to_assets(10, 3, 4).unwrap(), 7);
+        // zero deposited -> zero assets (not an error)
+        assert_eq!(kamino_collateral_to_assets(0, 2500, 800).unwrap(), 0);
+        // zero supplies are guarded with distinct errors
+        assert!(err_msg(kamino_collateral_to_assets(1, 2500, 0).unwrap_err())
+            .contains("collateral mint total supply is zero"));
+        assert!(err_msg(kamino_collateral_to_assets(1, 0, 800).unwrap_err())
+            .contains("total liquidity supply is zero"));
+        // multiplication overflow is checked
+        assert!(kamino_collateral_to_assets(u64::MAX, u128::MAX, 1).is_err());
+        // result exceeding u64 fails on the downcast
+        assert!(kamino_collateral_to_assets(u64::MAX, u64::MAX as u128, 1).is_err());
     }
 }
