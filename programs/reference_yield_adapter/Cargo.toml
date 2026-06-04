@@ -24,4 +24,5 @@ hashbrown = { workspace = true }
 proc-macro-crate = { workspace = true }
 
 [dev-dependencies]
+base64 = "0.22"
 serde_json = "1.0"

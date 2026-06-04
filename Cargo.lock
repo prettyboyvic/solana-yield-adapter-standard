@@ -1054,6 +1054,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "base64 0.22.1",
  "blake3",
  "hashbrown 0.16.1",
  "proc-macro-crate 3.3.0",
