@@ -1,0 +1,24 @@
+{
+  "name": "solana-yield-adapter-standard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference implementation for a Solana Yield Adapter Standard bounty.",
+  "workspaces": [
+    "packages/sdk"
+  ],
+  "scripts": {
+    "build": "npm run build -w @solana-yield-adapter-standard/sdk",
+    "typecheck": "npm run typecheck -w @solana-yield-adapter-standard/sdk",
+    "test": "npm run test -w @solana-yield-adapter-standard/sdk",
+    "anchor:build": "anchor build",
+    "anchor:test": "anchor test",
+    "fork:accounts": "tsx scripts/clone-mainnet-accounts.ts",
+    "adapters:print": "tsx scripts/register-reference-adapters.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.8"
+  }
+}

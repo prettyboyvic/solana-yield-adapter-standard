@@ -1,0 +1,22 @@
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+yield_adapter_dispatcher = "CP1io1rppTn7HDg8qzpGh629KG6K23ipcgtVZjWMtXmw"
+reference_yield_adapter = "CjGjc5uAnEuXBfRc9NKiNTxcvjxZA9snZ3V1MqKvJpoY"
+
+[programs.devnet]
+yield_adapter_dispatcher = "CP1io1rppTn7HDg8qzpGh629KG6K23ipcgtVZjWMtXmw"
+reference_yield_adapter = "CjGjc5uAnEuXBfRc9NKiNTxcvjxZA9snZ3V1MqKvJpoY"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "npm test"
+

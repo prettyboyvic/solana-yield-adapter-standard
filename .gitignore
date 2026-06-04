@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+.anchor/
+.env
+.env.*
+coverage/
+*.tsbuildinfo
+
