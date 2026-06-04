@@ -300,3 +300,21 @@ function writeU64LE(target: Uint8Array, offset: number, value: bigint | number):
   const view = new DataView(target.buffer, target.byteOffset + offset, 8);
   view.setBigUint64(0, n, true);
 }
+
+export {
+  EXPECTED_OBLIGATION_FARM_STATE,
+  KAMINO_CPI_INSTRUCTION_NAMES,
+  KaminoPlanError,
+  buildKaminoCpiPlans,
+  kaminoCpiAccountPlan,
+  loadKlendIdl,
+  loadKlendProgramId,
+} from "./kaminoCpiPlan.js";
+export type {
+  AccountMetaPlan,
+  BuildPlanInputs,
+  DerivedKaminoAccounts,
+  InstructionPlan,
+  KaminoCpiInstructionName,
+  KaminoCpiPlans,
+} from "./kaminoCpiPlan.js";
