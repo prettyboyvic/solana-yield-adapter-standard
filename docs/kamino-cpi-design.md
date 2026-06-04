@@ -1,8 +1,11 @@
 # Kamino USDC CPI — Transaction Shape & Custody Design
 
-Status: DESIGN ONLY (not approved, not implemented). No Rust CPI exists yet; the
-reference adapter still uses simulated virtual yield. This document is the
-unblocker for the first real Kamino pass. Inputs it builds on, all already in-repo:
+Status: split-transaction design approved; first-deposit init CPI implemented in
+`1b490f0`. The Rust `kamino_init` entrypoint performs only the setup CPIs
+(`initUserMetadata` + `initObligation`) and moves no funds. Kamino
+`kamino_deposit`, `kamino_withdraw`, and real `current_value` CPI/roundtrip are
+still not implemented or passing; the reference adapter's simulated instructions
+remain separate and unchanged. Inputs this design builds on, all already in-repo:
 
 - `docs/kamino-derived-accounts.json` — verified account map, `cpiPrereqStatus: READY`.
 - `packages/sdk/src/kaminoCpiPlan.ts` + `packages/sdk/fixtures/kamino-cpi-account-plan.json`
@@ -132,6 +135,9 @@ Kamino-specific accounts via `remaining_accounts`, **validated against the fixtu
 plan** before any CPI (see §3.6).
 
 ### 3.1 First-deposit init path (`adapter.kamino_init`)
+Implemented in `1b490f0` for the setup path only. It moves no funds and does not
+implement deposit, withdraw, or value CPI.
+
 Run only when `userMetadataInitialized == false` / `obligationInitialized == false`
 (both currently false on mainnet). CPI, `invoke_signed` by state PDA:
 1. `initUserMetadata(userLookupTable?)` — owner = state PDA, feePayer = user.
@@ -261,8 +267,13 @@ actually passes.
 
 ---
 
-## Approval gate
-Do not implement the Rust CPI until this design (transaction shape = split,
-custody = state-PDA pooled vault, signer = `[b"adapter", adapter_id, bump]`) is
-approved. Until the §5 roundtrip passes and its evidence is in `submission.md`,
-the honest status stays: Kamino CPI not implemented, full bounty not claimable.
+## Completion gate
+The approved design remains: transaction shape = split, custody = state-PDA
+pooled vault, signer seeds = `[b"adapter", adapter_id, &[state.bump]]`. Refresh
+instructions remain top-level sibling klend instructions; only PDA-signed
+mutation paths belong inside the adapter.
+
+Until `kamino_deposit`, `kamino_withdraw`, and real `current_value` are
+implemented and the §5 mainnet-fork deposit -> current_value -> withdraw
+roundtrip passes with evidence in `submission.md`, the honest status stays:
+Kamino init CPI only; full Kamino real CPI incomplete; full bounty not claimable.

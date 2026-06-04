@@ -1,7 +1,7 @@
 # Submission Notes
 
 **Status: weak / not submitted — needs live verification before final claim.**
-Repo pushed and source-complete; full bounty requirements: devnet deploy DONE; 5 mainnet-fork (real CPI) tests not yet met. Deadline 2026-06-09 (~5 days). Not yet submitted on Superteam Earn (HUMAN_ONLY listing, must be submitted by the human account holder).
+Repo pushed; source is not bounty-complete. Devnet deploy is DONE, but 5 mainnet-fork (real CPI) tests are not yet met. Deadline 2026-06-09 (~5 days). Not yet submitted on Superteam Earn (HUMAN_ONLY listing, must be submitted by the human account holder).
 
 Superteam Earn listing checked on 2026-06-04:
 
@@ -189,17 +189,22 @@ still `PENDING`, and defers the live on-validator roundtrip to `scripts/run-main
 Runnable now (this commit):
 - Real, verified program ids/mints wired; fork clone command generates cleanly.
 - Fork-readiness suite green; SDK ABI green.
-- Turnkey scripts: `scripts/devnet-deploy.ps1`, `scripts/run-mainnet-fork.mjs`.
+- Devnet deployment is DONE; the earlier payer/faucet blocker is historical only
+  and superseded by the deployment evidence above.
+- Turnkey scripts remain available: `scripts/devnet-deploy.ps1`,
+  `scripts/run-mainnet-fork.mjs`.
 
-Cannot be done from this environment (no Solana toolchain, no devnet/mainnet network,
-no validator) — must run on the Windows machine with Agave/Anchor 2.2.20:
-- Devnet deploy (payer still needs >= 6 devnet SOL; faucet was rate-limited).
-- Live mainnet-fork roundtrip with real per-protocol CPI.
+Still open:
+- Initialize the registry and register the five reference adapter configs on
+  devnet, unless/until verified on-chain.
+- Run the live mainnet-fork roundtrip with real per-protocol CPI.
+- Finish Kamino `kamino_deposit`, `kamino_withdraw`, and real `current_value`.
+- Finish MarginFi / Jupiter / Maple / Drift real CPI paths.
 
 ## Adapter interface prepared for real CPI (2026-06-04)
 
-The reference adapter now exposes the plumbing required for real protocol CPI,
-WITHOUT implementing any protocol integration yet:
+The reference adapter now exposes the plumbing required for real protocol CPI.
+After `1b490f0`, Kamino also has the first-deposit setup CPI entrypoint only:
 
 - Added `anchor-spl` (token feature) and a new `AdapterCpiRoute` account context
   carrying the user underlying token account, an adapter-side vault/receipt token
@@ -207,6 +212,9 @@ WITHOUT implementing any protocol integration yet:
 - Added separate `deposit_cpi` / `withdraw_cpi` / `current_value_cpi` instructions.
   Their bodies fail LOUDLY (`MissingCpiAccounts` if protocol accounts are absent,
   otherwise `CpiNotImplemented`). They never fall back to simulated yield.
+- Added `kamino_init` in commit `1b490f0`; it performs only the first-deposit
+  Kamino setup path (`initUserMetadata` + `initObligation`) using the state PDA
+  signer seeds and moves no funds.
 - The existing `deposit` / `withdraw` / `current_value` instructions are unchanged
   and now explicitly labelled SIMULATED REFERENCE ONLY (virtual-yield accounting,
   not bounty-grade CPI).
@@ -214,43 +222,44 @@ WITHOUT implementing any protocol integration yet:
   no success/simulated branch. SDK tests assert the CPI route has distinct
   discriminators from the simulated route and that `CPI_IMPLEMENTED === false`.
 
-Note: the Rust changes (anchor-spl dep + new context/instructions) were NOT compiled
-in this environment (no Rust toolchain). `cargo check --quiet` and `cargo test` must be
-run on the Windows machine to confirm; anchor-spl transitive crates may need version
-pins consistent with the existing Solana 2.2.20 platform-tools pins.
+Historical note: the original scaffold was not compiled in the earlier sandbox
+environment. The Kamino init CPI patch in `1b490f0` was later verified before
+commit with `cargo check -p reference_yield_adapter`, `cargo test -p
+reference_yield_adapter`, SDK typecheck/tests, `npm run kamino:cpi-plan`, and
+`git diff --check`.
 
-No protocol CPI (Kamino / MarginFi / Jupiter / Maple / Drift) is implemented.
-This is interface scaffolding only and is still NOT a full live-CPI bounty submission.
+Kamino full real CPI is still incomplete: `kamino_deposit`, `kamino_withdraw`, and
+real `current_value` are not implemented or passing. MarginFi / Jupiter / Maple /
+Drift real CPI paths are still open. This is still NOT a full live-CPI bounty
+submission.
 
-## Kamino USDC CPI status (2026-06-04): BLOCKED in this environment
+## Kamino USDC CPI status (2026-06-04): init CPI only
 
-Attempted the first real protocol CPI (Kamino USDC). Result: NOT implemented and
-NOT passing, blocked by environment limits. No CPI code was faked and no virtual-yield
-fallback was added for Kamino.
+Commit `1b490f0` implements the Rust `kamino_init` entrypoint. It performs the
+first-deposit setup path only:
 
-Exact blockers (all required to produce a verified Kamino roundtrip):
-1. No Rust toolchain available here -> cannot `cargo check` / `cargo test` an
-   implementation, so any klend CPI written here would be uncompiled and unverifiable.
-2. No mainnet RPC access here -> cannot derive the Main-Market USDC reserve sub-accounts
-   (reserve_liquidity_supply, reserve_collateral_mint, reserve_destination_deposit_collateral,
-   lending_market_authority PDA, obligation PDA, oracle accounts) via @kamino-finance/klend-sdk,
-   and cannot read the reserve account on-chain. Per the no-guessing rule these must not be
-   hardcoded from memory.
-3. No local validator -> cannot run the deposit -> current value -> withdraw mainnet-fork
-   roundtrip, which is required before claiming Kamino passes.
+- `initUserMetadata`
+- `initObligation`
 
-What WAS done (verified, sourced): the klend obligation-based deposit/withdraw/value
-instruction sequences and their account maps are documented in `docs/protocol-adapters.md`
-from the official klend IDL / @kamino-finance/klend-sdk. The real-CPI interface from
-commit 8671b2b still fails loudly and does not fall back to simulation.
+The init CPI is PDA-signed by the adapter state PDA with signer seeds
+`[b"adapter", adapter_id, &[state.bump]]`. It moves no funds, does not deposit,
+does not withdraw, and does not implement real value refresh/readback.
 
-To finish Kamino on the Windows machine (has Rust/Anchor + RPC + validator):
-derive the Main-Market USDC reserve accounts via klend-sdk, implement the three CPI
-sequences in the Kamino branch of `reference_yield_adapter`, then run
-`anchor test` / the mainnet-fork roundtrip and paste tx signatures + logs here.
+The approved Kamino transaction shape remains split transaction: refresh
+instructions stay as top-level sibling klend instructions built by the
+dispatcher/client, and only PDA-signed mutation paths belong inside the adapter.
 
-Kamino CPI: BLOCKED (not passing). MarginFi / Jupiter / Maple / Drift: still open.
-This is NOT a claim that all five adapters pass, and NOT full bounty completion.
+Still required before claiming Kamino passes:
+
+1. Implement `kamino_deposit`.
+2. Implement `kamino_withdraw`.
+3. Implement real Kamino `current_value`.
+4. Pass a mainnet-fork deposit -> current_value -> withdraw roundtrip and paste tx
+   signatures, slots, balance deltas, and logs here.
+
+Kamino CPI status: init CPI only, not a passing real-CPI adapter. MarginFi /
+Jupiter / Maple / Drift: still open. This is NOT a claim that all five adapters
+pass, and NOT full bounty completion.
 
 ### Kamino account derivation step (prepared 2026-06-04)
 
@@ -272,8 +281,9 @@ npm run kamino:derive
 # optional: $env:OWNER="<adapter authority pubkey>"  # also derives obligation PDA
 ```
 
-Kamino CPI is still NOT implemented, no mainnet-fork roundtrip has been run, and the
-full bounty remains NOT claimable.
+Kamino `kamino_init` CPI is implemented in `1b490f0`, but no mainnet-fork deposit
+-> current_value -> withdraw roundtrip has passed and the full bounty remains NOT
+claimable.
 
 Update 2026-06-04 (fix): the first run returned BLOCKED because the script called
 `KaminoMarket.load` without the required `recentSlotDurationMs` argument and selected
@@ -284,7 +294,8 @@ strictly by underlying mint (EPjFW...G8mm), and (d) on no-match returns BLOCKED 
 full `reserveEnumeration` of what the market actually contains. Lending-market authority
 uses `market.getLendingMarketAuthority()`. Verified here by `tsc` against the installed
 SDK types; the live `npm run kamino:derive` must be run on the Windows machine (this build
-environment has no mainnet RPC). Still no CPI, no roundtrip, bounty not claimable.
+environment has no mainnet RPC). Still no deposit/withdraw/value CPI roundtrip, bounty
+not claimable.
 
 ## Not Yet Claimable
 
@@ -296,7 +307,8 @@ Still required before a final bounty-grade submission (all on the Windows machin
 2. Initialize the registry and register the five reference adapter configs on devnet.
 3. Maple addresses are resolved (mint/router/pool/oracle wired). The Maple integration
    path is a Chainlink CCIP / token route, not a lending CPI — the live flow is still TODO.
-4. Implement and compile real protocol integration for Kamino, MarginFi, Jupiter LP,
-   Maple Syrup (CCIP route), and Drift Insurance Fund (reference adapter currently uses
-   a simulated virtual-yield model). No CPI was added in this patch.
+4. Finish and compile real protocol integration for Kamino, MarginFi, Jupiter LP,
+   Maple Syrup (CCIP route), and Drift Insurance Fund. Kamino init CPI is done in
+   `1b490f0`, but Kamino deposit/withdraw/value and the other adapters' real CPI
+   paths are still open.
 5. Run all five mainnet-fork tests via `npm run fork:run` flow and paste tx/log evidence here.
