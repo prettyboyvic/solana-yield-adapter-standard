@@ -353,6 +353,113 @@ pub mod reference_yield_adapter {
         Ok(())
     }
 
+    /// Kamino USDC real-CPI full withdraw mutation.
+    ///
+    /// This path validates the canonical klend withdraw account slice, redeems
+    /// the entire state-PDA-owned obligation with Kamino's `u64::MAX` convention,
+    /// then transfers the redeemed USDC from the adapter vault to the user. It
+    /// intentionally rejects partial withdraws until the adapter decodes refreshed
+    /// reserve/obligation state and can convert USDC value to cToken collateral
+    /// amounts safely.
+    pub fn kamino_withdraw<'info>(
+        ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+        adapter_id: [u8; 32],
+        shares: u64,
+        min_assets_out: u64,
+    ) -> Result<()> {
+        require!(shares > 0, AdapterError::InvalidAmount);
+        guard_kamino_cpi_route(&ctx, adapter_id)?;
+        validate_kamino_withdraw_accounts(&ctx)?;
+        require_keys_eq!(
+            ctx.accounts.position.owner,
+            ctx.accounts.user.key(),
+            AdapterError::Unauthorized
+        );
+        require!(
+            ctx.accounts.position.adapter_id == adapter_id,
+            AdapterError::AdapterMismatch
+        );
+        require!(
+            ctx.accounts.position.shares >= shares,
+            AdapterError::InsufficientShares
+        );
+
+        let quoted_assets_out = quote_withdraw_assets(&ctx.accounts.state, shares)?;
+        require!(
+            quoted_assets_out >= min_assets_out,
+            AdapterError::SlippageExceeded
+        );
+        let collateral_amount = kamino_full_withdraw_collateral_amount(
+            ctx.accounts.position.shares,
+            ctx.accounts.state.total_shares,
+            shares,
+        )?;
+        let vault_before = ctx.accounts.adapter_underlying.amount;
+
+        let bump = ctx.accounts.state.bump;
+        let signer_seeds: &[&[u8]] = &[
+            ADAPTER_SEED,
+            adapter_id.as_ref(),
+            core::slice::from_ref(&bump),
+        ];
+        let signer = &[signer_seeds];
+        let mut withdraw_data =
+            anchor_sighash("withdraw_obligation_collateral_and_redeem_reserve_collateral").to_vec();
+        withdraw_data.extend_from_slice(&collateral_amount.to_le_bytes());
+        invoke_signed(
+            &Instruction {
+                program_id: KAMINO_PROGRAM_ID,
+                accounts: remaining_accounts_to_metas(
+                    ctx.remaining_accounts,
+                    &KAMINO_WITHDRAW_LAYOUT,
+                ),
+                data: withdraw_data,
+            },
+            ctx.remaining_accounts,
+            signer,
+        )?;
+
+        ctx.accounts.adapter_underlying.reload()?;
+        let redeemed = ctx
+            .accounts
+            .adapter_underlying
+            .amount
+            .checked_sub(vault_before)
+            .ok_or(AdapterError::MathOverflow)?;
+        require!(redeemed > 0, AdapterError::SlippageExceeded);
+        require!(redeemed >= min_assets_out, AdapterError::SlippageExceeded);
+
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.adapter_underlying.to_account_info(),
+                    to: ctx.accounts.user_underlying.to_account_info(),
+                    authority: ctx.accounts.state.to_account_info(),
+                },
+                signer,
+            ),
+            redeemed,
+        )?;
+
+        ctx.accounts.position.shares = 0;
+        ctx.accounts.state.total_shares = 0;
+        ctx.accounts.state.total_assets = 0;
+        ctx.accounts.state.last_update_slot = Clock::get()?.slot;
+
+        update_position_value(&ctx.accounts.state, &mut ctx.accounts.position)?;
+
+        emit!(AdapterWithdraw {
+            adapter_id,
+            user: ctx.accounts.user.key(),
+            shares,
+            assets_out: redeemed,
+            position_value: ctx.accounts.position.last_value_assets,
+        });
+
+        Ok(())
+    }
+
     /// First-deposit init path for the Kamino USDC adapter.
     ///
     /// Performs the two PDA-signed klend setup CPIs — `initUserMetadata` then
@@ -631,6 +738,106 @@ fn validate_kamino_deposit_accounts<'info>(
     Ok(())
 }
 
+fn validate_kamino_withdraw_accounts<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+) -> Result<()> {
+    require!(
+        account_info_layout_matches(
+            &KAMINO_WITHDRAW_LAYOUT,
+            &remaining_accounts_to_specs(ctx.remaining_accounts)
+        ),
+        AdapterError::MissingCpiAccounts
+    );
+
+    let accounts = ctx.remaining_accounts;
+    require_keys_eq!(
+        accounts[0].key(),
+        ctx.accounts.state.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[1].key(),
+        KAMINO_USDC_OBLIGATION,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[2].key(),
+        ctx.accounts.state.protocol_market,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[3].key(),
+        KAMINO_MAIN_MARKET_AUTHORITY,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[4].key(),
+        KAMINO_USDC_RESERVE,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[5].key(),
+        ctx.accounts.state.underlying_mint,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(accounts[5].key(), USDC_MINT, AdapterError::AdapterMismatch);
+    require_keys_eq!(
+        accounts[6].key(),
+        KAMINO_USDC_RESERVE_DESTINATION_COLLATERAL,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[7].key(),
+        KAMINO_USDC_RESERVE_COLLATERAL_MINT,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[8].key(),
+        KAMINO_USDC_RESERVE_LIQUIDITY_SUPPLY,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[9].key(),
+        ctx.accounts.adapter_underlying.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[10].key(),
+        KAMINO_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(accounts[10].executable, AdapterError::MissingCpiAccounts);
+    require_keys_eq!(
+        accounts[11].key(),
+        ctx.accounts.token_program.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[12].key(),
+        ctx.accounts.token_program.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[13].key(),
+        anchor_lang::solana_program::sysvar::instructions::ID,
+        AdapterError::AdapterMismatch
+    );
+    Ok(())
+}
+
+pub fn kamino_full_withdraw_collateral_amount(
+    position_shares: u64,
+    total_shares: u64,
+    shares: u64,
+) -> Result<u64> {
+    require!(shares > 0, AdapterError::InvalidAmount);
+    require!(
+        shares == position_shares && shares == total_shares,
+        AdapterError::KaminoPartialWithdrawUnsupported
+    );
+    Ok(u64::MAX)
+}
+
 /// Expected (is_signer, is_writable) metadata for one account slot of a Kamino
 /// klend instruction. Sourced from the klend IDL and tied to the canonical
 /// fixture (`packages/sdk/fixtures/kamino-cpi-account-plan.json`) by the unit
@@ -681,6 +888,24 @@ pub const KAMINO_DEPOSIT_LAYOUT: [AccountLayoutSpec; 14] = [
     spec(false, true),  // reserveCollateralMint
     spec(false, true),  // reserveDestinationDepositCollateral
     spec(false, true),  // userSourceLiquidity
+    spec(false, false), // placeholderUserDestinationCollateral
+    spec(false, false), // collateralTokenProgram
+    spec(false, false), // liquidityTokenProgram
+    spec(false, false), // instructionSysvarAccount
+];
+
+/// klend `withdrawObligationCollateralAndRedeemReserveCollateral` account layout (14 accounts).
+pub const KAMINO_WITHDRAW_LAYOUT: [AccountLayoutSpec; 14] = [
+    spec(true, true),   // owner
+    spec(false, true),  // obligation
+    spec(false, false), // lendingMarket
+    spec(false, false), // lendingMarketAuthority
+    spec(false, true),  // withdrawReserve
+    spec(false, true),  // reserveLiquidityMint
+    spec(false, true),  // reserveSourceCollateral
+    spec(false, true),  // reserveCollateralMint
+    spec(false, true),  // reserveLiquiditySupply
+    spec(false, true),  // userDestinationLiquidity
     spec(false, false), // placeholderUserDestinationCollateral
     spec(false, false), // collateralTokenProgram
     spec(false, false), // liquidityTokenProgram
@@ -1179,6 +1404,8 @@ pub enum AdapterError {
     MissingCpiAccounts,
     #[msg("protocol CPI is not implemented yet; simulated fallback is intentionally disabled")]
     CpiNotImplemented,
+    #[msg("Kamino withdraw CPI supports only full-position/full-pool redemption until reserve exchange-rate decoding is implemented")]
+    KaminoPartialWithdrawUnsupported,
 }
 
 #[cfg(test)]
@@ -1241,6 +1468,10 @@ mod cpi_route_tests {
             fixture_layout("depositReserveLiquidityAndObligationCollateral"),
             KAMINO_DEPOSIT_LAYOUT.to_vec()
         );
+        assert_eq!(
+            fixture_layout("withdrawObligationCollateralAndRedeemReserveCollateral"),
+            KAMINO_WITHDRAW_LAYOUT.to_vec()
+        );
     }
 
     #[test]
@@ -1254,6 +1485,32 @@ mod cpi_route_tests {
         assert_eq!(keys[6], KAMINO_USDC_RESERVE_LIQUIDITY_SUPPLY.to_string());
         assert_eq!(keys[7], KAMINO_USDC_RESERVE_COLLATERAL_MINT.to_string());
         assert_eq!(keys[8], KAMINO_USDC_RESERVE_DESTINATION_COLLATERAL.to_string());
+        let (state, _) = adapter_state_pda(&KAMINO_USDC_ADAPTER_ID, &crate::ID);
+        assert_eq!(
+            keys[9],
+            adapter_underlying_vault_pda(&state, &anchor_spl::token::ID, &USDC_MINT).to_string()
+        );
+        assert_eq!(keys[10], KAMINO_PROGRAM_ID.to_string());
+        assert_eq!(
+            keys[13],
+            anchor_lang::solana_program::sysvar::instructions::ID.to_string()
+        );
+    }
+
+    #[test]
+    fn kamino_usdc_withdraw_constants_match_the_committed_fixture() {
+        let keys = fixture_pubkeys("withdrawObligationCollateralAndRedeemReserveCollateral");
+        assert_eq!(keys[1], KAMINO_USDC_OBLIGATION.to_string());
+        assert_eq!(keys[2], KAMINO_MAIN_MARKET.to_string());
+        assert_eq!(keys[3], KAMINO_MAIN_MARKET_AUTHORITY.to_string());
+        assert_eq!(keys[4], KAMINO_USDC_RESERVE.to_string());
+        assert_eq!(keys[5], USDC_MINT.to_string());
+        assert_eq!(
+            keys[6],
+            KAMINO_USDC_RESERVE_DESTINATION_COLLATERAL.to_string()
+        );
+        assert_eq!(keys[7], KAMINO_USDC_RESERVE_COLLATERAL_MINT.to_string());
+        assert_eq!(keys[8], KAMINO_USDC_RESERVE_LIQUIDITY_SUPPLY.to_string());
         let (state, _) = adapter_state_pda(&KAMINO_USDC_ADAPTER_ID, &crate::ID);
         assert_eq!(
             keys[9],
@@ -1307,6 +1564,20 @@ mod cpi_route_tests {
     }
 
     #[test]
+    fn full_kamino_withdraw_uses_max_collateral_amount() {
+        assert_eq!(
+            kamino_full_withdraw_collateral_amount(1_000, 1_000, 1_000).unwrap(),
+            u64::MAX
+        );
+    }
+
+    #[test]
+    fn partial_kamino_withdraw_fails_loudly() {
+        assert!(kamino_full_withdraw_collateral_amount(1_000, 2_000, 1_000).is_err());
+        assert!(kamino_full_withdraw_collateral_amount(1_000, 1_000, 500).is_err());
+    }
+
+    #[test]
     fn state_pda_derivation_is_deterministic() {
         let id = [7u8; 32];
         assert_eq!(adapter_state_pda(&id, &crate::ID), adapter_state_pda(&id, &crate::ID));
@@ -1317,12 +1588,17 @@ mod cpi_route_tests {
         let um = anchor_sighash("init_user_metadata");
         let ob = anchor_sighash("init_obligation");
         let deposit = anchor_sighash("deposit_reserve_liquidity_and_obligation_collateral");
+        let withdraw =
+            anchor_sighash("withdraw_obligation_collateral_and_redeem_reserve_collateral");
         assert_eq!(um.len(), 8);
         assert_eq!(ob.len(), 8);
         assert_eq!(deposit.len(), 8);
+        assert_eq!(withdraw.len(), 8);
         assert_eq!(deposit, [129, 199, 4, 2, 222, 39, 26, 46]);
+        assert_eq!(withdraw, [75, 93, 93, 220, 34, 150, 218, 196]);
         assert_ne!(um, ob);
         assert_ne!(um, deposit);
         assert_ne!(ob, deposit);
+        assert_ne!(deposit, withdraw);
     }
 }

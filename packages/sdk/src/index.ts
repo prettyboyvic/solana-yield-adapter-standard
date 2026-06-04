@@ -71,7 +71,18 @@ export const CPI_INSTRUCTIONS: readonly AdapterCpiInstructionName[] = [
   "current_value_cpi",
 ];
 
-/** No protocol CPI is implemented yet. Guards against claiming live CPI success. */
+export type KaminoCpiEntrypointName =
+  | "kamino_init"
+  | "kamino_deposit"
+  | "kamino_withdraw";
+
+export const KAMINO_CPI_ENTRYPOINTS: readonly KaminoCpiEntrypointName[] = [
+  "kamino_init",
+  "kamino_deposit",
+  "kamino_withdraw",
+];
+
+/** Full live CPI is not implemented yet. Guards against claiming bounty completion. */
 export const CPI_IMPLEMENTED = false as const;
 
 export interface AdapterMainnetWiring {
@@ -220,7 +231,10 @@ export function adapterId(label: string): Uint8Array {
 }
 
 export function anchorDiscriminator(
-  name: AdapterInstructionName | AdapterCpiInstructionName,
+  name:
+    | AdapterInstructionName
+    | AdapterCpiInstructionName
+    | KaminoCpiEntrypointName,
 ): Uint8Array {
   return createHash("sha256").update(`global:${name}`).digest().subarray(0, 8);
 }

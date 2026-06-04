@@ -29,6 +29,33 @@ anchor build
 anchor test --skip-local-validator
 ```
 
+## Current Readiness Coverage
+
+The default Vitest fork suite is an offline readiness gate, not a fake live pass.
+It currently checks:
+
+- clone-account output is non-empty, deduped, and contains no unresolved sentinel
+  values;
+- each non-`PENDING` adapter has coherent static mainnet wiring;
+- the committed Kamino CPI fixture contains every split-transaction section needed
+  by the fork runner (`init`, refreshes, deposit, withdraw);
+- Kamino withdraw account order is pinned to the klend IDL shape and redeems into
+  the adapter vault.
+
+Current local command:
+
+```bash
+npx vitest run tests/mainnet-fork.spec.ts
+```
+
+Expected readiness result after the Kamino withdraw update:
+
+```text
+1 file passed
+8 tests passed
+6 tests skipped
+```
+
 ## Evidence Format
 
 Paste logs into `docs/submission.md`:
@@ -47,5 +74,9 @@ Repeat for all five adapters.
 
 ## Enabling the Test File
 
-`tests/mainnet-fork.spec.ts` is skipped unless `MAINNET_RPC_URL` is set. Once real account maps are wired, remove the explicit throw in each test body and call the generated Anchor clients with the configured accounts.
-
+`tests/mainnet-fork.spec.ts` always runs the offline readiness checks above.
+The live roundtrip remains gated behind `MAINNET_FORK_LIVE=1` and should be driven
+through `scripts/run-mainnet-fork.mjs` against a real `solana-test-validator`
+fork. Once real account maps and protocol CPI clients are wired, replace the live
+placeholder with generated Anchor client calls and keep the default readiness
+checks active in CI.

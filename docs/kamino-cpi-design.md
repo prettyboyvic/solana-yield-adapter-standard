@@ -1,10 +1,10 @@
 # Kamino USDC CPI — Transaction Shape & Custody Design
 
-Status: split-transaction design approved; first-deposit init CPI implemented in
-`1b490f0`. The Rust `kamino_init` entrypoint performs only the setup CPIs
-(`initUserMetadata` + `initObligation`) and moves no funds. Kamino
-`kamino_deposit`, `kamino_withdraw`, and real `current_value` CPI/roundtrip are
-still not implemented or passing; the reference adapter's simulated instructions
+Status: split-transaction design approved. `kamino_init` is implemented in
+`1b490f0`; `kamino_deposit` is pushed in `c551674`; the current local working tree
+adds full-position/full-pool `kamino_withdraw`. Real Kamino `current_value`,
+partial-withdraw collateral conversion, and mainnet-fork roundtrip evidence are
+still not implemented/passing. The reference adapter's simulated instructions
 remain separate and unchanged. Inputs this design builds on, all already in-repo:
 
 - `docs/kamino-derived-accounts.json` — verified account map, `cpiPrereqStatus: READY`.
@@ -273,7 +273,8 @@ pooled vault, signer seeds = `[b"adapter", adapter_id, &[state.bump]]`. Refresh
 instructions remain top-level sibling klend instructions; only PDA-signed
 mutation paths belong inside the adapter.
 
-Until `kamino_deposit`, `kamino_withdraw`, and real `current_value` are
-implemented and the §5 mainnet-fork deposit -> current_value -> withdraw
-roundtrip passes with evidence in `submission.md`, the honest status stays:
-Kamino init CPI only; full Kamino real CPI incomplete; full bounty not claimable.
+Until real `current_value`, partial-withdraw collateral conversion (or a clearly
+scoped full-pool-only proof), and the §5 mainnet-fork deposit -> current_value ->
+withdraw roundtrip passes with evidence in `submission.md`, the honest status
+stays: Kamino CPI partial; full Kamino real CPI incomplete; full bounty not
+claimable.

@@ -4,6 +4,7 @@ import {
   SIMULATED_INSTRUCTIONS,
   CPI_INSTRUCTIONS,
   CPI_IMPLEMENTED,
+  KAMINO_CPI_ENTRYPOINTS,
   adapterId,
   anchorDiscriminator,
   bytesToHex,
@@ -69,6 +70,18 @@ describe("real-CPI route is separate from simulated route", () => {
     expect(new Set(CPI_INSTRUCTIONS).size).toBe(3);
   });
 
+  it("exposes Kamino-specific CPI entrypoints without marking full CPI complete", () => {
+    expect(KAMINO_CPI_ENTRYPOINTS).toEqual([
+      "kamino_init",
+      "kamino_deposit",
+      "kamino_withdraw",
+    ]);
+    expect(new Set(KAMINO_CPI_ENTRYPOINTS).size).toBe(3);
+    expect(bytesToHex(anchorDiscriminator("kamino_withdraw"))).toBe(
+      "c765292dd562e0c8",
+    );
+  });
+
   it("gives CPI instructions different discriminators than simulated ones", () => {
     const sim = new Set(
       SIMULATED_INSTRUCTIONS.map((n) => bytesToHex(anchorDiscriminator(n))),
@@ -76,6 +89,9 @@ describe("real-CPI route is separate from simulated route", () => {
     for (const cpi of CPI_INSTRUCTIONS) {
       // A real-CPI call can never be mistaken for / fall back to a simulated call.
       expect(sim.has(bytesToHex(anchorDiscriminator(cpi)))).toBe(false);
+    }
+    for (const kamino of KAMINO_CPI_ENTRYPOINTS) {
+      expect(sim.has(bytesToHex(anchorDiscriminator(kamino)))).toBe(false);
     }
   });
 
