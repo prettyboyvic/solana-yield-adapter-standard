@@ -1,12 +1,12 @@
 #![allow(deprecated, unexpected_cfgs)]
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount};
 use anchor_lang::solana_program::{
     hash::hash,
     instruction::{AccountMeta, Instruction},
     program::invoke_signed,
 };
+use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 declare_id!("BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1");
 
@@ -246,6 +246,113 @@ pub mod reference_yield_adapter {
         reject_unimplemented_cpi(ctx.remaining_accounts.len())
     }
 
+    /// Kamino USDC real-CPI deposit mutation.
+    ///
+    /// Refresh instructions remain top-level sibling klend instructions built by
+    /// the client/dispatcher. This entrypoint only performs the PDA-signed
+    /// mutation path: user USDC -> adapter vault, then klend deposit from that
+    /// vault into the state-PDA-owned obligation.
+    pub fn kamino_deposit<'info>(
+        ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+        adapter_id: [u8; 32],
+        amount: u64,
+        min_shares_out: u64,
+    ) -> Result<()> {
+        require!(amount > 0, AdapterError::InvalidAmount);
+        guard_kamino_cpi_route(&ctx, adapter_id)?;
+        validate_kamino_deposit_accounts(&ctx)?;
+
+        let shares_out = quote_deposit_shares(&ctx.accounts.state, amount)?;
+        require!(shares_out >= min_shares_out, AdapterError::SlippageExceeded);
+
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.user_underlying.to_account_info(),
+                    to: ctx.accounts.adapter_underlying.to_account_info(),
+                    authority: ctx.accounts.user.to_account_info(),
+                },
+            ),
+            amount,
+        )?;
+
+        let bump = ctx.accounts.state.bump;
+        let signer_seeds: &[&[u8]] = &[
+            ADAPTER_SEED,
+            adapter_id.as_ref(),
+            core::slice::from_ref(&bump),
+        ];
+        let signer = &[signer_seeds];
+        let mut deposit_data =
+            anchor_sighash("deposit_reserve_liquidity_and_obligation_collateral").to_vec();
+        deposit_data.extend_from_slice(&amount.to_le_bytes());
+        invoke_signed(
+            &Instruction {
+                program_id: KAMINO_PROGRAM_ID,
+                accounts: remaining_accounts_to_metas(
+                    ctx.remaining_accounts,
+                    &KAMINO_DEPOSIT_LAYOUT,
+                ),
+                data: deposit_data,
+            },
+            ctx.remaining_accounts,
+            signer,
+        )?;
+
+        let (_, position_bump) = Pubkey::find_program_address(
+            &[
+                POSITION_SEED,
+                adapter_id.as_ref(),
+                ctx.accounts.user.key().as_ref(),
+            ],
+            ctx.program_id,
+        );
+        initialize_position_if_needed(
+            &mut ctx.accounts.position,
+            ctx.accounts.user.key(),
+            adapter_id,
+            position_bump,
+        );
+        ctx.accounts.position.shares = ctx
+            .accounts
+            .position
+            .shares
+            .checked_add(shares_out)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.position.principal_assets = ctx
+            .accounts
+            .position
+            .principal_assets
+            .checked_add(amount)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.state.total_assets = ctx
+            .accounts
+            .state
+            .total_assets
+            .checked_add(amount)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.state.total_shares = ctx
+            .accounts
+            .state
+            .total_shares
+            .checked_add(shares_out)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.state.last_update_slot = Clock::get()?.slot;
+
+        update_position_value(&ctx.accounts.state, &mut ctx.accounts.position)?;
+
+        emit!(AdapterDeposit {
+            adapter_id,
+            user: ctx.accounts.user.key(),
+            amount,
+            shares_out,
+            position_value: ctx.accounts.position.last_value_assets,
+        });
+
+        Ok(())
+    }
+
     /// First-deposit init path for the Kamino USDC adapter.
     ///
     /// Performs the two PDA-signed klend setup CPIs — `initUserMetadata` then
@@ -387,6 +494,143 @@ fn guard_cpi_route<'info>(
     Ok(())
 }
 
+fn guard_kamino_cpi_route<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+    adapter_id: [u8; 32],
+) -> Result<()> {
+    guard_cpi_route(ctx, adapter_id)?;
+    require!(
+        adapter_id == KAMINO_USDC_ADAPTER_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        ctx.accounts.state.protocol == ProtocolKind::KaminoUsdc as u8,
+        AdapterError::InvalidProtocol
+    );
+    require_keys_eq!(
+        ctx.accounts.state.protocol_market,
+        KAMINO_MAIN_MARKET,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.state.underlying_mint,
+        USDC_MINT,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.user_underlying.mint,
+        ctx.accounts.state.underlying_mint,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.mint,
+        ctx.accounts.state.underlying_mint,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.owner,
+        ctx.accounts.state.key(),
+        AdapterError::Unauthorized
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.key(),
+        adapter_underlying_vault_pda(
+            &ctx.accounts.state.key(),
+            &ctx.accounts.token_program.key(),
+            &ctx.accounts.state.underlying_mint
+        ),
+        AdapterError::AdapterMismatch
+    );
+    Ok(())
+}
+
+fn validate_kamino_deposit_accounts<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+) -> Result<()> {
+    require!(
+        account_info_layout_matches(
+            &KAMINO_DEPOSIT_LAYOUT,
+            &remaining_accounts_to_specs(ctx.remaining_accounts)
+        ),
+        AdapterError::MissingCpiAccounts
+    );
+
+    let accounts = ctx.remaining_accounts;
+    require_keys_eq!(
+        accounts[0].key(),
+        ctx.accounts.state.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[2].key(),
+        ctx.accounts.state.protocol_market,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[1].key(),
+        KAMINO_USDC_OBLIGATION,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[3].key(),
+        KAMINO_MAIN_MARKET_AUTHORITY,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[4].key(),
+        KAMINO_USDC_RESERVE,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[5].key(),
+        ctx.accounts.state.underlying_mint,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(accounts[5].key(), USDC_MINT, AdapterError::AdapterMismatch);
+    require_keys_eq!(
+        accounts[6].key(),
+        KAMINO_USDC_RESERVE_LIQUIDITY_SUPPLY,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[7].key(),
+        KAMINO_USDC_RESERVE_COLLATERAL_MINT,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[8].key(),
+        KAMINO_USDC_RESERVE_DESTINATION_COLLATERAL,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[9].key(),
+        ctx.accounts.adapter_underlying.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[10].key(),
+        KAMINO_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(accounts[10].executable, AdapterError::MissingCpiAccounts);
+    require_keys_eq!(
+        accounts[11].key(),
+        ctx.accounts.token_program.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[12].key(),
+        ctx.accounts.token_program.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        accounts[13].key(),
+        anchor_lang::solana_program::sysvar::instructions::ID,
+        AdapterError::AdapterMismatch
+    );
+    Ok(())
+}
+
 /// Expected (is_signer, is_writable) metadata for one account slot of a Kamino
 /// klend instruction. Sourced from the klend IDL and tied to the canonical
 /// fixture (`packages/sdk/fixtures/kamino-cpi-account-plan.json`) by the unit
@@ -425,6 +669,24 @@ pub const KAMINO_INIT_OBLIGATION_LAYOUT: [AccountLayoutSpec; 9] = [
     spec(false, false), // systemProgram
 ];
 
+/// klend `depositReserveLiquidityAndObligationCollateral` account layout (14 accounts).
+pub const KAMINO_DEPOSIT_LAYOUT: [AccountLayoutSpec; 14] = [
+    spec(true, true),   // owner
+    spec(false, true),  // obligation
+    spec(false, false), // lendingMarket
+    spec(false, false), // lendingMarketAuthority
+    spec(false, true),  // reserve
+    spec(false, true),  // reserveLiquidityMint
+    spec(false, true),  // reserveLiquiditySupply
+    spec(false, true),  // reserveCollateralMint
+    spec(false, true),  // reserveDestinationDepositCollateral
+    spec(false, true),  // userSourceLiquidity
+    spec(false, false), // placeholderUserDestinationCollateral
+    spec(false, false), // collateralTokenProgram
+    spec(false, false), // liquidityTokenProgram
+    spec(false, false), // instructionSysvarAccount
+];
+
 /// Validate a provided account layout against an expected one. Returns false on a
 /// count mismatch or any per-slot signer/writable mismatch (callers fail loudly).
 pub fn account_layout_matches(
@@ -440,9 +702,43 @@ pub fn adapter_state_pda(adapter_id: &[u8; 32], program_id: &Pubkey) -> (Pubkey,
     Pubkey::find_program_address(&[ADAPTER_SEED, adapter_id.as_ref()], program_id)
 }
 
+pub fn adapter_underlying_vault_pda(
+    state: &Pubkey,
+    token_program: &Pubkey,
+    underlying_mint: &Pubkey,
+) -> Pubkey {
+    Pubkey::find_program_address(
+        &[state.as_ref(), token_program.as_ref(), underlying_mint.as_ref()],
+        &ASSOCIATED_TOKEN_PROGRAM_ID,
+    )
+    .0
+}
+
 /// klend (Kamino lending) mainnet program id. The Kamino CPI target.
 pub const KAMINO_PROGRAM_ID: Pubkey =
     anchor_lang::solana_program::pubkey!("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
+pub const ASSOCIATED_TOKEN_PROGRAM_ID: Pubkey =
+    anchor_lang::solana_program::pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+pub const KAMINO_USDC_ADAPTER_ID: [u8; 32] = [
+    0xc9, 0xe8, 0x01, 0xe5, 0xbc, 0x5b, 0x06, 0xd3, 0xda, 0x15, 0x65, 0xb3, 0x42, 0x99, 0xaa, 0x70,
+    0xf7, 0xa4, 0x76, 0xb8, 0x45, 0x66, 0x65, 0xa0, 0x2e, 0x62, 0xbc, 0xae, 0xc5, 0x98, 0xc7, 0xa4,
+];
+pub const KAMINO_USDC_OBLIGATION: Pubkey =
+    anchor_lang::solana_program::pubkey!("BMVjGznYqketbFdniGVSjmghmUduqYvsspnqXvpz9Maa");
+pub const KAMINO_MAIN_MARKET: Pubkey =
+    anchor_lang::solana_program::pubkey!("7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF");
+pub const KAMINO_MAIN_MARKET_AUTHORITY: Pubkey =
+    anchor_lang::solana_program::pubkey!("9DrvZvyWh1HuAoZxvYWMvkf2XCzryCpGgHqrMjyDWpmo");
+pub const KAMINO_USDC_RESERVE: Pubkey =
+    anchor_lang::solana_program::pubkey!("D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59");
+pub const USDC_MINT: Pubkey =
+    anchor_lang::solana_program::pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+pub const KAMINO_USDC_RESERVE_LIQUIDITY_SUPPLY: Pubkey =
+    anchor_lang::solana_program::pubkey!("Bgq7trRgVMeq33yt235zM2onQ4bRDBsY5EWiTetF4qw6");
+pub const KAMINO_USDC_RESERVE_COLLATERAL_MINT: Pubkey =
+    anchor_lang::solana_program::pubkey!("B8V6WVjPxW1UGwVDfxH2d2r8SyT4cqn7dQRK6XneVa7D");
+pub const KAMINO_USDC_RESERVE_DESTINATION_COLLATERAL: Pubkey =
+    anchor_lang::solana_program::pubkey!("3DzjXRfxRm6iejfyyMynR4tScddaanrePJ1NJU2XnPPL");
 
 /// Anchor instruction discriminator = sha256("global:<method>")[..8].
 fn anchor_sighash(method: &str) -> [u8; 8] {
@@ -459,6 +755,45 @@ fn metas_to_specs(metas: &[AccountMeta]) -> Vec<AccountLayoutSpec> {
         .map(|m| AccountLayoutSpec {
             is_signer: m.is_signer,
             is_writable: m.is_writable,
+        })
+        .collect()
+}
+
+fn remaining_accounts_to_specs(accounts: &[AccountInfo]) -> Vec<AccountLayoutSpec> {
+    accounts
+        .iter()
+        .map(|account| AccountLayoutSpec {
+            is_signer: account.is_signer,
+            is_writable: account.is_writable,
+        })
+        .collect()
+}
+
+fn account_info_layout_matches(
+    expected: &[AccountLayoutSpec],
+    provided: &[AccountLayoutSpec],
+) -> bool {
+    expected.len() == provided.len()
+        && expected.iter().zip(provided).all(|(e, g)| {
+            // PDA signer bits are only applied to the inner CPI AccountMeta via
+            // invoke_signed, so outer AccountInfo::is_signer may be false.
+            e.is_writable == g.is_writable && (e.is_signer || !g.is_signer)
+        })
+}
+
+fn remaining_accounts_to_metas(
+    accounts: &[AccountInfo],
+    expected: &[AccountLayoutSpec],
+) -> Vec<AccountMeta> {
+    accounts
+        .iter()
+        .zip(expected.iter())
+        .map(|(account, spec)| {
+            if spec.is_writable {
+                AccountMeta::new(account.key(), spec.is_signer)
+            } else {
+                AccountMeta::new_readonly(account.key(), spec.is_signer)
+            }
         })
         .collect()
 }
@@ -880,6 +1215,17 @@ mod cpi_route_tests {
             .collect()
     }
 
+    fn fixture_pubkeys(section: &str) -> Vec<String> {
+        let f: serde_json::Value =
+            serde_json::from_str(FIXTURE_JSON).expect("valid Kamino CPI account-plan fixture");
+        f.pointer(&format!("/accountPlan/plans/{section}/accounts"))
+            .and_then(serde_json::Value::as_array)
+            .unwrap_or_else(|| panic!("fixture missing plan section {section}"))
+            .iter()
+            .map(|a| a["pubkey"].as_str().expect("account pubkey").to_string())
+            .collect()
+    }
+
     #[test]
     fn init_layouts_match_the_committed_fixture() {
         // The on-chain flag specs must equal what the fixture/IDL define.
@@ -890,6 +1236,33 @@ mod cpi_route_tests {
         assert_eq!(
             fixture_layout("initObligation"),
             KAMINO_INIT_OBLIGATION_LAYOUT.to_vec()
+        );
+        assert_eq!(
+            fixture_layout("depositReserveLiquidityAndObligationCollateral"),
+            KAMINO_DEPOSIT_LAYOUT.to_vec()
+        );
+    }
+
+    #[test]
+    fn kamino_usdc_deposit_constants_match_the_committed_fixture() {
+        let keys = fixture_pubkeys("depositReserveLiquidityAndObligationCollateral");
+        assert_eq!(keys[1], KAMINO_USDC_OBLIGATION.to_string());
+        assert_eq!(keys[2], KAMINO_MAIN_MARKET.to_string());
+        assert_eq!(keys[3], KAMINO_MAIN_MARKET_AUTHORITY.to_string());
+        assert_eq!(keys[4], KAMINO_USDC_RESERVE.to_string());
+        assert_eq!(keys[5], USDC_MINT.to_string());
+        assert_eq!(keys[6], KAMINO_USDC_RESERVE_LIQUIDITY_SUPPLY.to_string());
+        assert_eq!(keys[7], KAMINO_USDC_RESERVE_COLLATERAL_MINT.to_string());
+        assert_eq!(keys[8], KAMINO_USDC_RESERVE_DESTINATION_COLLATERAL.to_string());
+        let (state, _) = adapter_state_pda(&KAMINO_USDC_ADAPTER_ID, &crate::ID);
+        assert_eq!(
+            keys[9],
+            adapter_underlying_vault_pda(&state, &anchor_spl::token::ID, &USDC_MINT).to_string()
+        );
+        assert_eq!(keys[10], KAMINO_PROGRAM_ID.to_string());
+        assert_eq!(
+            keys[13],
+            anchor_lang::solana_program::sysvar::instructions::ID.to_string()
         );
     }
 
@@ -918,6 +1291,22 @@ mod cpi_route_tests {
     }
 
     #[test]
+    fn remaining_account_info_layout_allows_inner_pda_signer() {
+        let mut outer_infos = KAMINO_DEPOSIT_LAYOUT;
+        outer_infos[0].is_signer = false; // state PDA signs only inside invoke_signed
+        assert!(account_info_layout_matches(
+            &KAMINO_DEPOSIT_LAYOUT,
+            &outer_infos
+        ));
+
+        outer_infos[1].is_writable = false;
+        assert!(!account_info_layout_matches(
+            &KAMINO_DEPOSIT_LAYOUT,
+            &outer_infos
+        ));
+    }
+
+    #[test]
     fn state_pda_derivation_is_deterministic() {
         let id = [7u8; 32];
         assert_eq!(adapter_state_pda(&id, &crate::ID), adapter_state_pda(&id, &crate::ID));
@@ -927,8 +1316,13 @@ mod cpi_route_tests {
     fn init_sighashes_are_sized_and_distinct() {
         let um = anchor_sighash("init_user_metadata");
         let ob = anchor_sighash("init_obligation");
+        let deposit = anchor_sighash("deposit_reserve_liquidity_and_obligation_collateral");
         assert_eq!(um.len(), 8);
         assert_eq!(ob.len(), 8);
+        assert_eq!(deposit.len(), 8);
+        assert_eq!(deposit, [129, 199, 4, 2, 222, 39, 26, 46]);
         assert_ne!(um, ob);
+        assert_ne!(um, deposit);
+        assert_ne!(ob, deposit);
     }
 }
