@@ -566,6 +566,52 @@ pub mod reference_yield_adapter {
         });
         Ok(())
     }
+
+    /// Initialize a fresh runtime-keypair MarginFi account owned by the adapter
+    /// state PDA. This moves no funds and does not wire deposit/withdraw CPI.
+    pub fn marginfi_init(ctx: Context<MarginfiInit>, adapter_id: [u8; 32]) -> Result<()> {
+        guard_marginfi_init_state(&ctx.accounts.state, adapter_id)?;
+
+        let bump = ctx.accounts.state.bump;
+        let signer_seeds: &[&[u8]] =
+            &[ADAPTER_SEED, adapter_id.as_ref(), core::slice::from_ref(&bump)];
+        let signer = &[signer_seeds];
+        let metas = marginfi_init_account_metas(
+            ctx.accounts.marginfi_group.key(),
+            ctx.accounts.marginfi_account.key(),
+            ctx.accounts.state.key(),
+            ctx.accounts.user.key(),
+            ctx.accounts.system_program.key(),
+        );
+        require!(
+            account_layout_matches(&MARGINFI_ACCOUNT_INITIALIZE_LAYOUT, &metas_to_specs(&metas)),
+            AdapterError::MissingCpiAccounts
+        );
+
+        invoke_signed(
+            &Instruction {
+                program_id: MARGINFI_PROGRAM_ID,
+                accounts: metas,
+                data: anchor_sighash("marginfi_account_initialize").to_vec(),
+            },
+            &[
+                ctx.accounts.marginfi_group.to_account_info(),
+                ctx.accounts.marginfi_account.to_account_info(),
+                ctx.accounts.state.to_account_info(),
+                ctx.accounts.user.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+                ctx.accounts.marginfi_program.to_account_info(),
+            ],
+            signer,
+        )?;
+
+        emit!(MarginfiInitialized {
+            adapter_id,
+            marginfi_account: ctx.accounts.marginfi_account.key(),
+            authority: ctx.accounts.state.key(),
+        });
+        Ok(())
+    }
 }
 
 /// Routing decision for the real-CPI path. Intentionally has NO variant that
@@ -605,6 +651,30 @@ fn guard_cpi_route<'info>(
         ctx.accounts.user_underlying.owner,
         ctx.accounts.user.key(),
         AdapterError::Unauthorized
+    );
+    Ok(())
+}
+
+fn guard_marginfi_init_state(state: &AdapterState, adapter_id: [u8; 32]) -> Result<()> {
+    require!(state.adapter_id == adapter_id, AdapterError::AdapterMismatch);
+    require!(!state.paused, AdapterError::Paused);
+    require!(
+        adapter_id == MARGINFI_USDC_ADAPTER_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        state.protocol == ProtocolKind::MarginfiUsdc as u8,
+        AdapterError::InvalidProtocol
+    );
+    require_keys_eq!(
+        state.protocol_market,
+        MARGINFI_PRODUCTION_GROUP,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        state.underlying_mint,
+        USDC_MINT,
+        AdapterError::AdapterMismatch
     );
     Ok(())
 }
@@ -928,11 +998,9 @@ pub fn kamino_full_withdraw_collateral_amount(
     Ok(u64::MAX)
 }
 
-/// Expected (is_signer, is_writable) metadata for one account slot of a Kamino
-/// klend instruction. Sourced from the klend IDL and tied to the canonical
-/// fixture (`packages/sdk/fixtures/kamino-cpi-account-plan.json`) by the unit
-/// tests below. The on-chain program intentionally stores only these compact
-/// flag specs as the routing gate's expectation; it never embeds the fixture JSON.
+/// Expected (is_signer, is_writable) metadata for one protocol instruction
+/// account slot. The on-chain program intentionally stores only these compact
+/// flag specs as the routing gate's expectation; it never embeds fixture JSON.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct AccountLayoutSpec {
     pub is_signer: bool,
@@ -964,6 +1032,15 @@ pub const KAMINO_INIT_OBLIGATION_LAYOUT: [AccountLayoutSpec; 9] = [
     spec(false, false), // ownerUserMetadata
     spec(false, false), // rent
     spec(false, false), // systemProgram
+];
+
+/// MarginFi `marginfi_account_initialize` account layout (5 accounts).
+pub const MARGINFI_ACCOUNT_INITIALIZE_LAYOUT: [AccountLayoutSpec; 5] = [
+    spec(false, false), // marginfi_group
+    spec(true, true),   // marginfi_account
+    spec(true, false),  // authority (state PDA)
+    spec(true, true),   // fee_payer
+    spec(false, false), // system_program
 ];
 
 /// klend `depositReserveLiquidityAndObligationCollateralV2` account layout (17 accounts).
@@ -1525,6 +1602,22 @@ fn anchor_sighash(method: &str) -> [u8; 8] {
     out
 }
 
+fn marginfi_init_account_metas(
+    marginfi_group: Pubkey,
+    marginfi_account: Pubkey,
+    authority: Pubkey,
+    fee_payer: Pubkey,
+    system_program: Pubkey,
+) -> Vec<AccountMeta> {
+    vec![
+        AccountMeta::new_readonly(marginfi_group, false),
+        AccountMeta::new(marginfi_account, true),
+        AccountMeta::new_readonly(authority, true),
+        AccountMeta::new(fee_payer, true),
+        AccountMeta::new_readonly(system_program, false),
+    ]
+}
+
 /// Project built `AccountMeta`s onto the compact layout specs the gate checks.
 fn metas_to_specs(metas: &[AccountMeta]) -> Vec<AccountLayoutSpec> {
     metas
@@ -1802,6 +1895,33 @@ pub struct KaminoInit<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Accounts for MarginFi `marginfi_account_initialize`. The MarginFi account is
+/// a fresh runtime keypair signer; the adapter state PDA is the account authority.
+#[derive(Accounts)]
+#[instruction(adapter_id: [u8; 32])]
+pub struct MarginfiInit<'info> {
+    /// Fee payer + transaction signer.
+    #[account(mut)]
+    pub user: Signer<'info>,
+    /// Adapter state PDA = MarginFi account authority; CPI signer.
+    #[cfg_attr(
+        not(feature = "idl-build"),
+        account(seeds = [ADAPTER_SEED, adapter_id.as_ref()], bump = state.bump)
+    )]
+    #[cfg_attr(feature = "idl-build", account())]
+    pub state: Account<'info, AdapterState>,
+    /// CHECK: MarginFi program, pinned by address.
+    #[account(address = MARGINFI_PROGRAM_ID)]
+    pub marginfi_program: UncheckedAccount<'info>,
+    /// CHECK: production MarginFi group, pinned by address.
+    #[account(address = MARGINFI_PRODUCTION_GROUP)]
+    pub marginfi_group: UncheckedAccount<'info>,
+    /// Fresh runtime keypair created and owned by MarginFi during the CPI.
+    #[account(mut)]
+    pub marginfi_account: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 #[account]
 pub struct AdapterState {
     pub adapter_id: [u8; 32],
@@ -1898,6 +2018,13 @@ pub struct KaminoInitialized {
     pub obligation_owner: Pubkey,
     pub obligation: Pubkey,
     pub user_metadata: Pubkey,
+}
+
+#[event]
+pub struct MarginfiInitialized {
+    pub adapter_id: [u8; 32],
+    pub marginfi_account: Pubkey,
+    pub authority: Pubkey,
 }
 
 #[event]
@@ -2005,6 +2132,8 @@ mod cpi_route_tests {
 
     const FIXTURE_JSON: &str =
         include_str!("../../../packages/sdk/fixtures/kamino-cpi-account-plan.json");
+    const MARGINFI_FIXTURE_JSON: &str =
+        include_str!("../../../packages/sdk/fixtures/marginfi-cpi-account-plan.json");
 
     fn fixture_layout(section: &str) -> Vec<AccountLayoutSpec> {
         let f: serde_json::Value =
@@ -2031,6 +2160,30 @@ mod cpi_route_tests {
             .collect()
     }
 
+    fn marginfi_init_fixture() -> serde_json::Value {
+        let fixture: serde_json::Value = serde_json::from_str(MARGINFI_FIXTURE_JSON)
+            .expect("valid MarginFi CPI account-plan fixture");
+        fixture["plans"]["marginfi_account_initialize"].clone()
+    }
+
+    fn marginfi_init_state() -> AdapterState {
+        AdapterState {
+            adapter_id: MARGINFI_USDC_ADAPTER_ID,
+            protocol: ProtocolKind::MarginfiUsdc as u8,
+            authority: Pubkey::new_unique(),
+            underlying_mint: USDC_MINT,
+            receipt_mint: Pubkey::default(),
+            protocol_market: MARGINFI_PRODUCTION_GROUP,
+            value_oracle: Pubkey::default(),
+            total_assets: 0,
+            total_shares: 0,
+            last_update_slot: 0,
+            bump: adapter_state_pda(&MARGINFI_USDC_ADAPTER_ID, &crate::ID).1,
+            paused: false,
+            metadata_uri: String::new(),
+        }
+    }
+
     #[test]
     fn init_layouts_match_the_committed_fixture() {
         // The on-chain flag specs must equal what the fixture/IDL define.
@@ -2050,6 +2203,94 @@ mod cpi_route_tests {
             fixture_layout("withdrawObligationCollateralAndRedeemReserveCollateralV2"),
             KAMINO_WITHDRAW_V2_LAYOUT.to_vec()
         );
+    }
+
+    #[test]
+    fn marginfi_init_layout_and_discriminator_match_committed_fixture() {
+        let plan = marginfi_init_fixture();
+        let accounts = plan["accounts"].as_array().expect("MarginFi init accounts");
+        let layout = accounts
+            .iter()
+            .map(|account| AccountLayoutSpec {
+                is_signer: account["isSigner"].as_bool().unwrap_or(false),
+                is_writable: account["isWritable"].as_bool().unwrap_or(false),
+            })
+            .collect::<Vec<_>>();
+        let names = accounts
+            .iter()
+            .map(|account| account["name"].as_str().expect("account name"))
+            .collect::<Vec<_>>();
+        let discriminator = plan["discriminator"]
+            .as_array()
+            .expect("MarginFi init discriminator")
+            .iter()
+            .map(|byte| byte.as_u64().expect("discriminator byte") as u8)
+            .collect::<Vec<_>>();
+
+        assert_eq!(layout, MARGINFI_ACCOUNT_INITIALIZE_LAYOUT.to_vec());
+        assert_eq!(
+            names,
+            [
+                "marginfi_group",
+                "marginfi_account",
+                "authority",
+                "fee_payer",
+                "system_program",
+            ]
+        );
+        assert_eq!(
+            discriminator,
+            anchor_sighash("marginfi_account_initialize").to_vec()
+        );
+    }
+
+    #[test]
+    fn marginfi_init_meta_builder_matches_fixture_constants_and_flags() {
+        let plan = marginfi_init_fixture();
+        let runtime_account = Pubkey::new_unique();
+        let fee_payer = Pubkey::new_unique();
+        let (state, _) = adapter_state_pda(&MARGINFI_USDC_ADAPTER_ID, &crate::ID);
+        let metas = marginfi_init_account_metas(
+            MARGINFI_PRODUCTION_GROUP,
+            runtime_account,
+            state,
+            fee_payer,
+            System::id(),
+        );
+
+        assert_eq!(metas_to_specs(&metas), MARGINFI_ACCOUNT_INITIALIZE_LAYOUT);
+        assert_eq!(metas[0].pubkey, MARGINFI_PRODUCTION_GROUP);
+        assert_eq!(metas[1].pubkey, runtime_account);
+        assert_eq!(metas[2].pubkey, state);
+        assert_eq!(metas[3].pubkey, fee_payer);
+        assert_eq!(metas[4].pubkey, System::id());
+        assert_eq!(
+            plan["accounts"][0]["pubkey"].as_str().expect("fixture group"),
+            MARGINFI_PRODUCTION_GROUP.to_string()
+        );
+        assert_eq!(
+            plan["accounts"][2]["pubkey"].as_str().expect("fixture authority"),
+            state.to_string()
+        );
+    }
+
+    #[test]
+    fn marginfi_init_guard_accepts_only_configured_state() {
+        assert!(guard_marginfi_init_state(&marginfi_init_state(), MARGINFI_USDC_ADAPTER_ID).is_ok());
+
+        let mut paused = marginfi_init_state();
+        paused.paused = true;
+        assert!(guard_marginfi_init_state(&paused, MARGINFI_USDC_ADAPTER_ID).is_err());
+
+        let mut wrong_protocol = marginfi_init_state();
+        wrong_protocol.protocol = ProtocolKind::KaminoUsdc as u8;
+        assert!(guard_marginfi_init_state(&wrong_protocol, MARGINFI_USDC_ADAPTER_ID).is_err());
+
+        let mut wrong_market = marginfi_init_state();
+        wrong_market.protocol_market = Pubkey::new_unique();
+        assert!(guard_marginfi_init_state(&wrong_market, MARGINFI_USDC_ADAPTER_ID).is_err());
+
+        assert!(guard_marginfi_init_state(&marginfi_init_state(), KAMINO_USDC_ADAPTER_ID).is_err());
     }
 
     #[test]
