@@ -18,12 +18,32 @@ The repository defines:
 
 ## Status
 
-This workspace is ready for source review and SDK verification. A full bounty-grade submission still requires:
+This workspace is ready for source review and SDK verification, but it is not a
+full bounty claim yet.
 
-- Anchor 0.31.1, Solana 2.2.20, Rust, and a funded devnet deploy key.
-- Real protocol CPI account maps for the five adapters.
-- Mainnet-fork run evidence against a pinned RPC snapshot.
-- Devnet deployment address for the registry program.
+Current pushed Kamino USDC coverage:
+
+- Real klend setup, deposit CPI, and full-pool withdraw CPI paths.
+- Real read-only current-value decoder for refreshed Kamino reserve/obligation
+  bytes.
+- Oracle fixture at `tests/fixtures/kamino-current-value-424277911.json`
+  cross-checking the Rust decoder against
+  `@kamino-finance/klend-sdk@3.2.26`; result: `diffLamports=0`.
+
+Guarded / still not claimed:
+
+- `CPI_IMPLEMENTED` remains `false`; the SDK does not advertise full CPI
+  completion.
+- No live mainnet-fork deposit -> current_value -> withdraw transaction
+  signatures are included yet.
+- At fixture slot `424277911`, the adapter-derived Kamino obligation was not
+  initialized on mainnet; the fixture records that caveat and uses a separate
+  initialized USDC obligation only for decoder proof.
+- Partial Kamino withdraw and the other four protocol real-CPI paths remain
+  loud-fail / not implemented.
+
+A full bounty-grade submission still requires live mainnet-fork evidence for all
+five adapters against a pinned RPC snapshot.
 
 ## Quick Start
 

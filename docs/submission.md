@@ -1,7 +1,12 @@
 # Submission Notes
 
-**Status: weak / not submitted — needs live verification before final claim.**
-Repo pushed; source is not bounty-complete. Devnet deploy is DONE, but 5 mainnet-fork (real CPI) tests are not yet met. Deadline 2026-06-09 (~5 days). Not yet submitted on Superteam Earn (HUMAN_ONLY listing, must be submitted by the human account holder).
+**Status: source-review ready / not submitted - needs live mainnet-fork evidence before final claim.**
+Repo pushed and synced. Devnet deploy is DONE, and the Kamino USDC path now has
+deposit CPI, full-pool withdraw CPI, a real current-value decoder, and an
+official klend-sdk oracle fixture. The full bounty is still not claimable until
+all five adapters have live mainnet-fork roundtrip evidence. Deadline
+2026-06-09 (~5 days). Not yet submitted on Superteam Earn (HUMAN_ONLY listing,
+must be submitted by the human account holder).
 
 Superteam Earn listing checked on 2026-06-04:
 
@@ -31,6 +36,9 @@ This section supersedes older Kamino status notes below.
 Latest pushed `origin/main` commits checked after `git fetch origin`:
 
 ```text
+1a0dc0f test: add Kamino current value oracle fixture
+82a2c2b feat: add Kamino current value decoder
+15cfb00 feat: add Kamino full-pool withdraw CPI path
 c551674 feat: add Kamino deposit CPI path
 6af5809 chore: register devnet reference adapters
 9272dca docs: update Kamino init CPI status
@@ -41,34 +49,55 @@ e00074f test: add Kamino CPI account plan fixture checks
 646957e chore: add Kamino CPI account plan fixture
 ```
 
-Local working tree update not pushed yet:
+Kamino implemented scope:
 
-- Added `kamino_withdraw` to the reference adapter as a real Kamino klend CPI path
-  for full-position/full-pool redemption.
-- The path validates the committed `withdrawObligationCollateralAndRedeemReserveCollateral`
-  account order/flags and concrete Kamino USDC accounts before CPI.
-- Full withdraw uses Kamino's `u64::MAX` collateral amount convention, reloads the
-  adapter USDC vault after CPI, enforces `min_assets_out`, transfers redeemed USDC
-  to the user, burns local shares, and zeroes pool totals.
-- Partial Kamino withdraw intentionally fails loudly with
-  `KaminoPartialWithdrawUnsupported` until the adapter decodes refreshed
-  reserve/obligation state and can convert USDC value to cToken collateral amount.
-- SDK ABI now exposes `KAMINO_CPI_ENTRYPOINTS` while keeping
-  `CPI_IMPLEMENTED === false` so the repo does not claim full live CPI completion.
-- Mainnet-fork readiness tests now assert the Kamino split-transaction fixture has
-  all refresh/init/deposit/withdraw plan sections and that the withdraw plan redeems
-  into the adapter vault.
+- `kamino_init`: real klend setup CPI for state-PDA-owned user metadata and
+  obligation.
+- `kamino_deposit`: real klend deposit CPI, using the adapter USDC vault as
+  `userSourceLiquidity` and validating the canonical remaining-account fixture.
+- `kamino_withdraw`: real klend full-position/full-pool withdraw CPI using
+  Kamino's `u64::MAX` collateral amount convention, redeeming into the adapter
+  vault, enforcing `min_assets_out`, transferring USDC to the user, burning local
+  shares, and zeroing pool totals.
+- `current_value_cpi` on the Kamino route: read-only decoder for refreshed klend
+  `Reserve` + `Obligation` account bytes; converts deposited cTokens to
+  underlying USDC lamports and updates pooled `total_assets`.
+- `tests/fixtures/kamino-current-value-424277911.json`: raw mainnet account
+  fixture decoded with official `@kamino-finance/klend-sdk@3.2.26`.
 
-Verification run after the local update:
+Kamino guarded / not claimed:
+
+- `CPI_IMPLEMENTED === false` remains intentional; the SDK must not advertise
+  the full CPI matrix as complete.
+- Partial Kamino withdraw still fails loudly with
+  `KaminoPartialWithdrawUnsupported`; only full-pool withdraw is implemented.
+- At fixture slot `424277911`, `KAMINO_USDC_OBLIGATION`
+  (`BMVjGznYqketbFdniGVSjmghmUduqYvsspnqXvpz9Maa`) was not initialized on
+  mainnet. The fixture records that caveat and uses a separate real initialized
+  USDC Kamino obligation
+  (`2HNipSa8PHXN77Pmymq22k8fnh2yT4p8snaofCkuDzqk`) only to prove the Rust decoder
+  against official SDK math on real raw klend bytes.
+- No live mainnet-fork Kamino deposit -> current_value -> withdraw transaction
+  signatures are claimed yet.
+
+Current verification evidence:
 
 ```text
-cargo check --workspace: pass
-cargo test -p reference_yield_adapter: pass, 25 tests
-npm test: pass, 20 SDK tests
-npx vitest run tests/mainnet-fork.spec.ts: pass, 8 passed / 6 skipped
-npm run typecheck: pass
-npm run build: pass
-npm run kamino:cpi-plan: pass, rewrote fixture with no diff
+cargo check --workspace: PASS
+cargo test -p reference_yield_adapter kamino_decode_tests: PASS
+cargo test -p reference_yield_adapter: PASS
+npm exec tsx -- scripts/kamino-current-value-oracle.ts: PASS
+```
+
+Oracle fixture result:
+
+```text
+slot=424277911
+sdkVersion=3.2.26
+depositedCollateral=125715157
+sdkExpectedAssets=149062854
+rustAssets=149062854
+diffLamports=0
 ```
 
 Live mainnet-fork roundtrip status:
@@ -81,13 +110,12 @@ deposit -> current_value -> withdraw.
 
 Generic CPI route audit:
 
-- `deposit_cpi`, `withdraw_cpi`, and `current_value_cpi` still fail loudly by
-  design: no remaining accounts -> `MissingCpiAccounts`; any remaining accounts ->
-  `CpiNotImplemented`; no simulated fallback exists.
-- Kamino-specific real CPI entrypoints now present: `kamino_init`,
-  `kamino_deposit`, and full-pool `kamino_withdraw`.
-- Kamino real `current_value` is still not implemented. This blocks an honest
-  Kamino deposit -> current_value -> withdraw pass claim.
+- Generic non-Kamino `deposit_cpi`, `withdraw_cpi`, and `current_value_cpi` still
+  fail loudly by design: no remaining accounts -> `MissingCpiAccounts`; remaining
+  accounts on unsupported adapters -> `CpiNotImplemented`; no simulated fallback
+  exists.
+- Kamino-specific real paths now present: `kamino_init`, `kamino_deposit`,
+  full-pool `kamino_withdraw`, and read-only real `current_value_cpi`.
 - MarginFi, Jupiter LP, Maple Syrup, and Drift Insurance Fund still do not have
   real protocol CPI implementations. Their generic CPI routes remain loud-fail
   only.
@@ -96,13 +124,14 @@ Generic CPI route audit:
 
 Final bounty submission checklist:
 
-- Push the local Kamino withdraw/test/docs commit and record the new commit hash.
-- Rebuild SBF/IDL artifacts from the pushed commit.
+- Rebuild SBF/IDL artifacts from pushed commit `1a0dc0f` or newer.
 - Start a mainnet-fork validator with the static clone list plus derived Kamino
   reserve, obligation, user metadata, farm, Scope, token, and sysvar accounts.
 - Run the Kamino split sequence: refreshes, `kamino_init` if accounts are empty,
-  `kamino_deposit`, real value refresh/readback once implemented, and full
-  `kamino_withdraw`.
+  `kamino_deposit`, real value refresh/readback, and full-pool `kamino_withdraw`.
+- For the fork run, remember that the adapter-derived Kamino obligation was not
+  initialized at snapshot slot `424277911`; initialize it via `kamino_init` before
+  expecting the adapter's live `current_value_cpi` to read it.
 - Capture fork slot, tx signatures, program logs, compute budget, user/vault USDC
   deltas, obligation collateral deltas, and adapter state/position fields.
 - Implement and verify the remaining four protocol integrations before claiming
@@ -308,24 +337,25 @@ Runnable now (this commit):
 
 Still open:
 - Run the live mainnet-fork roundtrip with real per-protocol CPI.
-- Finish Kamino real `current_value`, partial-withdraw collateral conversion, and
-  mainnet-fork roundtrip evidence. `kamino_deposit` is pushed; full-pool
-  `kamino_withdraw` is implemented locally but not pushed yet.
+- Kamino still needs live mainnet-fork roundtrip evidence. Deposit CPI,
+  full-pool withdraw CPI, current-value decoder, and the SDK oracle fixture are
+  pushed; partial-withdraw collateral conversion remains intentionally guarded.
 - Finish MarginFi / Jupiter / Maple / Drift real CPI paths.
 
 ## Adapter interface prepared for real CPI (2026-06-04)
 
 The reference adapter now exposes the plumbing required for real protocol CPI.
 After `1b490f0`, Kamino had the first-deposit setup CPI entrypoint; after
-`c551674`, Kamino deposit CPI was pushed; the current local working tree adds a
-full-pool Kamino withdraw CPI path.
+`c551674`, Kamino deposit CPI was pushed; after `15cfb00`, full-pool withdraw
+CPI was pushed; after `82a2c2b` and `1a0dc0f`, real current-value decoding and
+the official SDK oracle fixture were pushed.
 
 - Added `anchor-spl` (token feature) and a new `AdapterCpiRoute` account context
   carrying the user underlying token account, an adapter-side vault/receipt token
   account, `token_program`, and `remaining_accounts` for protocol-specific accounts.
 - Added separate `deposit_cpi` / `withdraw_cpi` / `current_value_cpi` instructions.
-  Their bodies fail LOUDLY (`MissingCpiAccounts` if protocol accounts are absent,
-  otherwise `CpiNotImplemented`). They never fall back to simulated yield.
+  Unsupported routes fail LOUDLY (`MissingCpiAccounts` if protocol accounts are
+  absent, otherwise `CpiNotImplemented`). They never fall back to simulated yield.
 - Added `kamino_init` in commit `1b490f0`; it performs only the first-deposit
   Kamino setup path (`initUserMetadata` + `initObligation`) using the state PDA
   signer seeds and moves no funds.
@@ -342,13 +372,15 @@ commit with `cargo check -p reference_yield_adapter`, `cargo test -p
 reference_yield_adapter`, SDK typecheck/tests, `npm run kamino:cpi-plan`, and
 `git diff --check`.
 
-Kamino full real CPI is still incomplete: `kamino_deposit` is pushed and
-full-pool `kamino_withdraw` is local, but real `current_value`, partial-withdraw
-reserve exchange-rate conversion, and the live mainnet-fork roundtrip are not
-implemented/passing. MarginFi / Jupiter / Maple / Drift real CPI paths are still
-open. This is still NOT a full live-CPI bounty submission.
+Kamino real CPI is still not claimed as a live pass: `kamino_deposit`,
+full-pool `kamino_withdraw`, and real `current_value_cpi` are pushed, and the
+current-value decoder matches the official SDK oracle fixture with
+`diffLamports=0`; however, partial-withdraw collateral conversion and the live
+mainnet-fork roundtrip are not implemented/passing. MarginFi / Jupiter / Maple /
+Drift real CPI paths are still open. This is still NOT a full live-CPI bounty
+submission.
 
-## Kamino USDC CPI status (2026-06-04): init + deposit + local full-pool withdraw
+## Kamino USDC CPI status (2026-06-04): init + deposit + full-pool withdraw + value decoder
 
 Commit `1b490f0` implements the Rust `kamino_init` entrypoint. It performs the
 first-deposit setup path:
@@ -360,10 +392,11 @@ The init CPI is PDA-signed by the adapter state PDA with signer seeds
 `[b"adapter", adapter_id, &[state.bump]]`. It moves no funds and does not
 implement real value refresh/readback.
 
-Commit `c551674` adds `kamino_deposit`. The current local working tree adds
-full-position/full-pool `kamino_withdraw` using Kamino's `u64::MAX` withdraw
-convention. That local withdraw path intentionally rejects partial withdraws
-until reserve exchange-rate decoding is implemented.
+Commit `c551674` adds `kamino_deposit`. Commit `15cfb00` adds full-position /
+full-pool `kamino_withdraw` using Kamino's `u64::MAX` withdraw convention.
+Commit `82a2c2b` adds the current-value decoder, and commit `1a0dc0f` adds the
+official klend-sdk oracle fixture. The withdraw path intentionally rejects
+partial withdraws until proportional collateral redemption is implemented.
 
 The approved Kamino transaction shape remains split transaction: refresh
 instructions stay as top-level sibling klend instructions built by the
@@ -371,16 +404,18 @@ dispatcher/client, and only PDA-signed mutation paths belong inside the adapter.
 
 Still required before claiming Kamino passes:
 
-1. Push the local `kamino_withdraw` commit.
-2. Implement real Kamino `current_value`.
+1. Run and record a live mainnet-fork Kamino roundtrip.
+2. Initialize the adapter-derived obligation on the fork when absent.
 3. Implement partial-withdraw collateral conversion or keep the fork proof scoped
    to full-pool withdraw.
 4. Pass a mainnet-fork deposit -> current_value -> withdraw roundtrip and paste tx
    signatures, slots, balance deltas, and logs here.
 
-Kamino CPI status: init + pushed deposit + local full-pool withdraw, not a passing
-real-CPI adapter yet. MarginFi / Jupiter / Maple / Drift: still open. This is NOT
-a claim that all five adapters pass, and NOT full bounty completion.
+Kamino CPI status: init + deposit + full-pool withdraw + current-value decoder
+are pushed, with SDK oracle fixture evidence for the decoder, but no live
+mainnet-fork roundtrip is claimed yet. MarginFi / Jupiter / Maple / Drift: still
+open. This is NOT a claim that all five adapters pass, and NOT full bounty
+completion.
 
 ### Kamino account derivation step (prepared 2026-06-04)
 
@@ -428,8 +463,9 @@ Still required before a final bounty-grade submission (all on the Windows machin
 2. Devnet registry DONE — registry initialized and all five reference adapter configs registered.
 3. Maple addresses are resolved (mint/router/pool/oracle wired). The Maple integration
    path is a Chainlink CCIP / token route, not a lending CPI — the live flow is still TODO.
-4. Finish and compile real protocol integration for Kamino, MarginFi, Jupiter LP,
-   Maple Syrup (CCIP route), and Drift Insurance Fund. Kamino init CPI is done in
-   `1b490f0`, but Kamino deposit/withdraw/value and the other adapters' real CPI
-   paths are still open.
+4. Finish and compile the remaining real protocol integrations for MarginFi,
+   Jupiter LP, Maple Syrup (CCIP route), and Drift Insurance Fund. Kamino init,
+   deposit, full-pool withdraw, and current-value decoding are pushed, but Kamino
+   still needs live mainnet-fork roundtrip evidence, and partial-withdraw
+   collateral conversion remains intentionally guarded.
 5. Run all five mainnet-fork tests via `npm run fork:run` flow and paste tx/log evidence here.
