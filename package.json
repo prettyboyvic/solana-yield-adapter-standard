@@ -13,6 +13,7 @@
     "anchor:build": "anchor build",
     "anchor:test": "anchor test",
     "fork:accounts": "tsx scripts/clone-mainnet-accounts.ts",
+    "fork:run": "node scripts/run-mainnet-fork.mjs",
     "adapters:print": "tsx scripts/register-reference-adapters.ts"
   },
   "devDependencies": {

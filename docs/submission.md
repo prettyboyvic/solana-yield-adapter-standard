@@ -1,5 +1,8 @@
 # Submission Notes
 
+**Status: weak / not submitted — needs live verification before final claim.**
+Repo pushed and source-complete; full bounty requirements (devnet deploy + 5 mainnet-fork tests) not yet met. Deadline 2026-06-09 (~5 days). Not yet submitted on Superteam Earn (HUMAN_ONLY listing, must be submitted by the human account holder).
+
 Superteam Earn listing checked on 2026-06-04:
 
 - Title: Develop Solana Yield Adapter Standard
@@ -99,14 +102,15 @@ The Solana toolchain is corrupted. Please, run cargo-build-sbf with the --force-
 
 `cargo-build-sbf --force-tools-install` was already run. The underlying platform `cargo.exe` and `rustc.exe` work, and direct SBF build succeeds. This appears to be a Windows wrapper/toolchain detection issue, not a program compilation issue.
 
-## Not Yet Claimable
+## Mainnet Wiring (verified 2026-06-04)
 
-Do not claim the full bounty requirements are complete yet.
+Replaced the previous `*_REPLACE` placeholders with web-verified, stable mainnet ids
+in `packages/sdk/src/index.ts`. Per-market accounts (reserves, banks, groups,
+obligations, IF stake) are intentionally NOT hardcoded — they are derived on-machine
+via each protocol SDK and marked `DERIVE_VIA_PROTOCOL_SDK_ON_MACHINE`.
 
-Still required before a final bounty-grade submission:
-
-1. Fund the devnet payer and deploy both programs.
-2. Initialize the registry and register the five reference adapter configs on devnet.
-3. Replace protocol account placeholders in `docs/protocol-adapters.md` and `scripts/clone-mainnet-accounts.ts`.
-4. Implement real protocol CPI account maps for Kamino, MarginFi, Jupiter LP, Maple Syrup, and Drift Insurance Fund.
-5. Run all five mainnet-fork tests and paste transaction/log evidence here.
+```text
+USDC mint            EPjFWdd5AufqSSqeM2qzH6oEgCG1kduA3s3z2nZ7G8mm
+Kamino KLend program KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD
+MarginFi v2 program  MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA
+Drift v2 progra

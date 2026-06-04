@@ -1,4 +1,9 @@
-import { REFERENCE_ADAPTERS } from "../packages/sdk/src/index.js";
+import {
+  REFERENCE_ADAPTERS,
+  forkCloneAccounts,
+  DERIVE,
+  PENDING,
+} from "../packages/sdk/src/index.js";
 
 const rpc = process.env.MAINNET_RPC_URL;
 
@@ -6,33 +11,42 @@ if (!rpc) {
   throw new Error("Set MAINNET_RPC_URL before preparing fork account clones.");
 }
 
-const commonAccounts = [
-  "EPjFWdd5AufqSSqeM2qzH6oEgCG1kduA3s3z2nZ7G8mm",
-];
+const accounts = forkCloneAccounts();
 
-const protocolAccounts = [
-  "KAMINO_RESERVE_AND_MARKET_ACCOUNTS_REPLACE",
-  "MARGINFI_BANK_AND_GROUP_ACCOUNTS_REPLACE",
-  "JUPITER_POOL_AND_VAULT_ACCOUNTS_REPLACE",
-  "MAPLE_POOL_AND_RECEIPT_ACCOUNTS_REPLACE",
-  "DRIFT_STATE_SPOT_MARKET_AND_INSURANCE_FUND_ACCOUNTS_REPLACE",
-];
+console.log("Reference adapters and mainnet wiring:");
+for (const adapter of REFERENCE_ADAPTERS) {
+  const m = adapter.mainnet;
+  console.log(`\n- ${adapter.label}`);
+  console.log(`    program:   ${m.programId}`);
+  console.log(`    underlying:${m.underlyingMint}`);
+  console.log(`    receipt:   ${m.receiptMint}`);
+  if (m.derived.length) {
+    console.log(`    derive on-machine: ${m.derived.join(", ")}`);
+  }
+  console.log(`    note: ${m.notes}`);
+}
 
-const accounts = [...commonAccounts, ...protocolAccounts].filter(
-  (account) => !account.endsWith("_REPLACE"),
+const stillOpen = REFERENCE_ADAPTERS.filter(
+  (a) => a.mainnet.programId === PENDING || a.mainnet.receiptMint === PENDING,
+).map((a) => a.label);
+
+if (stillOpen.length) {
+  console.log(
+    `\nPENDING on-chain verification before real CPI: ${stillOpen.join(", ")}`,
+  );
+}
+
+console.log(`\nConcrete accounts to clone (${accounts.length}):`);
+for (const a of accounts) console.log(`  ${a}`);
+
+console.log(
+  "\nNote: per-market reserve/bank/group/obligation/IF-stake accounts are derived\n" +
+    "on-machine via each protocol SDK (shown as " +
+    DERIVE +
+    ") and added to --clone there.",
 );
 
-console.log("Reference adapters:");
-for (const adapter of REFERENCE_ADAPTERS) {
-  console.log(`- ${adapter.label}`);
-}
-
-if (accounts.length === 0) {
-  console.log("No concrete protocol accounts configured yet.");
-  process.exit(0);
-}
-
-console.log("\nRun:");
+console.log("\nRun (clones the verified static accounts):");
 console.log(
   [
     "solana-test-validator",
@@ -42,4 +56,3 @@ console.log(
     "--reset",
   ].join(" "),
 );
-

@@ -7,6 +7,22 @@ export const REFERENCE_ADAPTER_PROGRAM_ID =
 
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qzH6oEgCG1kduA3s3z2nZ7G8mm";
 
+// Verified mainnet program ids / mints (stable, web-verified 2026-06-04).
+// Sources recorded in docs/submission.md.
+export const KAMINO_KLEND_PROGRAM_ID =
+  "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD";
+export const MARGINFI_V2_PROGRAM_ID =
+  "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA";
+export const DRIFT_V2_PROGRAM_ID =
+  "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH";
+export const JLP_MINT = "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4";
+
+// Accounts that are position/market-specific and must be DERIVED on-machine via
+// each protocol's SDK (not a single static address). Kept explicit so the fork
+// harness never silently uses a fake address.
+export const DERIVE = "DERIVE_VIA_PROTOCOL_SDK_ON_MACHINE" as const;
+export const PENDING = "PENDING_ONCHAIN_VERIFICATION" as const;
+
 export const CAPABILITY_DEPOSIT = 1 << 0;
 export const CAPABILITY_WITHDRAW = 1 << 1;
 export const CAPABILITY_CURRENT_VALUE = 1 << 2;
@@ -23,6 +39,20 @@ export enum ProtocolKind {
 
 export type AdapterInstructionName = "deposit" | "withdraw" | "current_value";
 
+export interface AdapterMainnetWiring {
+  /** On-chain program the adapter performs CPI into. */
+  programId: string;
+  /** Asset the user deposits. */
+  underlyingMint: string;
+  /** Receipt/share token, or DERIVE/PENDING when not a single static address. */
+  receiptMint: string;
+  /** Concrete accounts safe to `--clone` into a local fork. */
+  cloneAccounts: string[];
+  /** Accounts that must be derived on-machine via the protocol SDK. */
+  derived: string[];
+  notes: string;
+}
+
 export interface ReferenceAdapterConfig {
   label: string;
   adapterId: Uint8Array;
@@ -32,6 +62,7 @@ export interface ReferenceAdapterConfig {
   capabilities: number;
   riskTier: number;
   metadataUri: string;
+  mainnet: AdapterMainnetWiring;
 }
 
 export const REFERENCE_ADAPTERS: readonly ReferenceAdapterConfig[] = [
@@ -40,52 +71,108 @@ export const REFERENCE_ADAPTERS: readonly ReferenceAdapterConfig[] = [
     adapterId: adapterId("kamino-usdc"),
     protocol: ProtocolKind.KaminoUsdc,
     underlyingMint: USDC_MINT,
-    receiptMint: "KAMINO_RECEIPT_MINT_REPLACE_WITH_MAINNET",
+    receiptMint: DERIVE,
     capabilities: CAPABILITY_ALL,
     riskTier: 2,
     metadataUri: "ipfs://solana-yield-adapters/kamino-usdc.json",
+    mainnet: {
+      programId: KAMINO_KLEND_PROGRAM_ID,
+      underlyingMint: USDC_MINT,
+      receiptMint: DERIVE,
+      cloneAccounts: [KAMINO_KLEND_PROGRAM_ID, USDC_MINT],
+      derived: ["lendingMarket", "usdcReserve", "reserveCollateralMint", "userObligation"],
+      notes:
+        "Derive USDC reserve + collateral (cToken) mint via @kamino-finance/klend-sdk: market.getReserve('USDC').",
+    },
   },
   {
     label: "marginfi-usdc",
     adapterId: adapterId("marginfi-usdc"),
     protocol: ProtocolKind.MarginfiUsdc,
     underlyingMint: USDC_MINT,
-    receiptMint: "MARGINFI_RECEIPT_MINT_REPLACE_WITH_MAINNET",
+    receiptMint: DERIVE,
     capabilities: CAPABILITY_ALL,
     riskTier: 2,
     metadataUri: "ipfs://solana-yield-adapters/marginfi-usdc.json",
+    mainnet: {
+      programId: MARGINFI_V2_PROGRAM_ID,
+      underlyingMint: USDC_MINT,
+      receiptMint: DERIVE,
+      cloneAccounts: [MARGINFI_V2_PROGRAM_ID, USDC_MINT],
+      derived: ["marginfiGroup", "usdcBank", "liquidityVault", "marginfiAccount"],
+      notes:
+        "MarginFi is bank-based (no SPL receipt mint). Derive production group + USDC bank via @mrgnlabs/marginfi-client-v2.",
+    },
   },
   {
     label: "jupiter-lp",
     adapterId: adapterId("jupiter-lp"),
     protocol: ProtocolKind.JupiterLp,
-    underlyingMint: "JUPITER_LP_UNDERLYING_REPLACE_WITH_MAINNET",
-    receiptMint: "JUPITER_LP_RECEIPT_REPLACE_WITH_MAINNET",
+    underlyingMint: USDC_MINT,
+    receiptMint: JLP_MINT,
     capabilities: CAPABILITY_ALL,
     riskTier: 3,
     metadataUri: "ipfs://solana-yield-adapters/jupiter-lp.json",
+    mainnet: {
+      programId: "PERPHjGBqRHArX4DySjwM6UJHiR3sWAatqfdBS2qQJu",
+      underlyingMint: USDC_MINT,
+      receiptMint: JLP_MINT,
+      cloneAccounts: [JLP_MINT, USDC_MINT],
+      derived: ["jupiterPerpsPool", "custodies", "poolVaults"],
+      notes:
+        "Deposit USDC into the Jupiter Perps pool, receive JLP (27G8...idD4). Confirm Perps program id + pool/custody accounts on-chain before enabling CPI.",
+    },
   },
   {
     label: "maple-syrup",
     adapterId: adapterId("maple-syrup"),
     protocol: ProtocolKind.MapleSyrup,
     underlyingMint: USDC_MINT,
-    receiptMint: "MAPLE_SYRUP_RECEIPT_REPLACE_WITH_MAINNET",
+    receiptMint: PENDING,
     capabilities: CAPABILITY_ALL,
     riskTier: 3,
     metadataUri: "ipfs://solana-yield-adapters/maple-syrup.json",
+    mainnet: {
+      programId: PENDING,
+      underlyingMint: USDC_MINT,
+      receiptMint: PENDING,
+      cloneAccounts: [USDC_MINT],
+      derived: ["maplePool", "syrupUsdcMint", "lenderReceipt"],
+      notes:
+        "syrupUSDC launched on Solana mid-2025 (recent). Confirm Maple Solana program id + syrupUSDC mint from maple.finance docs before wiring.",
+    },
   },
   {
     label: "drift-insurance-fund",
     adapterId: adapterId("drift-insurance-fund"),
     protocol: ProtocolKind.DriftInsuranceFund,
     underlyingMint: USDC_MINT,
-    receiptMint: "DRIFT_IF_SHARES_REPLACE_WITH_MAINNET",
+    receiptMint: DERIVE,
     capabilities: CAPABILITY_ALL,
     riskTier: 4,
     metadataUri: "ipfs://solana-yield-adapters/drift-insurance-fund.json",
+    mainnet: {
+      programId: DRIFT_V2_PROGRAM_ID,
+      underlyingMint: USDC_MINT,
+      receiptMint: DERIVE,
+      cloneAccounts: [DRIFT_V2_PROGRAM_ID, USDC_MINT],
+      derived: ["driftState", "usdcSpotMarket", "insuranceFundVault", "ifStakeAccount"],
+      notes:
+        "IF stake is account-based (no SPL share mint). Derive state, USDC spot market (index 0), and IF vault via @drift-labs/sdk.",
+    },
   },
 ] as const;
+
+/** Concrete, clone-able mainnet accounts across all adapters (deduped). */
+export function forkCloneAccounts(): string[] {
+  const set = new Set<string>([USDC_MINT]);
+  for (const a of REFERENCE_ADAPTERS) {
+    for (const acc of a.mainnet.cloneAccounts) {
+      if (acc !== DERIVE && acc !== PENDING) set.add(acc);
+    }
+  }
+  return [...set];
+}
 
 export function adapterId(label: string): Uint8Array {
   return createHash("sha256").update(`solana-yield-adapter:${label}`).digest();
