@@ -275,6 +275,17 @@ npm run kamino:derive
 Kamino CPI is still NOT implemented, no mainnet-fork roundtrip has been run, and the
 full bounty remains NOT claimable.
 
+Update 2026-06-04 (fix): the first run returned BLOCKED because the script called
+`KaminoMarket.load` without the required `recentSlotDurationMs` argument and selected
+the reserve by the symbol "USDC". The script now (a) calls `load(connection, market,
+recentSlotDurationMs, programId, false, true)` per the installed klend-sdk types,
+(b) enumerates every reserve via `market.getReserves()`, (c) selects the USDC reserve
+strictly by underlying mint (EPjFW...G8mm), and (d) on no-match returns BLOCKED with a
+full `reserveEnumeration` of what the market actually contains. Lending-market authority
+uses `market.getLendingMarketAuthority()`. Verified here by `tsc` against the installed
+SDK types; the live `npm run kamino:derive` must be run on the Windows machine (this build
+environment has no mainnet RPC). Still no CPI, no roundtrip, bounty not claimable.
+
 ## Not Yet Claimable
 
 Do not claim the full bounty requirements are complete yet.
