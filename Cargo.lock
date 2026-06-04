@@ -1057,6 +1057,7 @@ dependencies = [
  "blake3",
  "hashbrown 0.16.1",
  "proc-macro-crate 3.3.0",
+ "serde_json",
 ]
 
 [[package]]
