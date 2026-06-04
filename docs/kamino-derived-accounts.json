@@ -1,0 +1,807 @@
+{
+  "note": "Kamino Main-Market USDC account map, selected by underlying mint. null/BLOCKED = not verified; no guesses.",
+  "source": "official @kamino-finance/klend-sdk + on-chain read",
+  "cpiImplemented": false,
+  "klendProgramId": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+  "lendingMarket": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+  "underlyingMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "associatedTokenProgram": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+  "systemProgram": "11111111111111111111111111111111",
+  "instructionsSysvar": "Sysvar1nstructions1111111111111111111111111",
+  "rentSysvar": "SysvarRent111111111111111111111111111111111",
+  "usdcReserve": "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59",
+  "reserveLiquidityMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "reserveLiquiditySupplyVault": "Bgq7trRgVMeq33yt235zM2onQ4bRDBsY5EWiTetF4qw6",
+  "reserveFeeReceiver": "BbDUrk1bVtSixgQsPLBJFZEF7mwGstnD5joA1WzYvYFX",
+  "reserveCollateralMint": "B8V6WVjPxW1UGwVDfxH2d2r8SyT4cqn7dQRK6XneVa7D",
+  "reserveDestinationDepositCollateral": "3DzjXRfxRm6iejfyyMynR4tScddaanrePJ1NJU2XnPPL",
+  "lendingMarketAuthority": "9DrvZvyWh1HuAoZxvYWMvkf2XCzryCpGgHqrMjyDWpmo",
+  "lendingMarketAuthorityMethod": "market.getLendingMarketAuthority()",
+  "oracles": {
+    "pyth": "11111111111111111111111111111111",
+    "switchboardPrice": "11111111111111111111111111111111",
+    "switchboardTwap": "11111111111111111111111111111111",
+    "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+  },
+  "obligation": {
+    "strategy": "Vanilla obligation derived per adapter authority/user via klend VanillaObligation(programId) / market.getUserVanillaObligation(owner).",
+    "derivedForOwner": null
+  },
+  "status": "DERIVED",
+  "unresolved": [],
+  "reserveCount": 55,
+  "reserveEnumeration": [
+    {
+      "address": "H9vmCVd77N1HZa36eBn3UnftYmg4vQzPfm1RxabHAMER",
+      "symbol": "bSOL",
+      "liquidityMint": "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",
+      "collateralMint": "FtLmvJvsGW41fE7hwsp53uv2UqHakZ3QS7UBb5WoZtZg",
+      "liquiditySupplyVault": "AQeaZUp248NPCBwRuVPzCsN3DX6DsgVHyiE25z6eEeAs",
+      "collateralSupplyVault": "5JYgSp95BqxEAZteg7QmS2afk7pH7dvuqsqfUDorxKZb",
+      "feeVault": "6EaD2XvC9MiWgrPXbA5iMJ1hdo1UsLQaXme6o4kjSA61",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "EAA3VVsxUuQB1Tm5x7TJkq9ATtiX5Qwq8ok7gXwim7oo",
+      "symbol": "JLP",
+      "liquidityMint": "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4",
+      "collateralMint": "3SET7bMq4ScRZGjZP7NiL2hwTS7SfF9HQPwqPNVD1gL9",
+      "liquiditySupplyVault": "7dD6bhVgWtxyQPDAuM6Vprd22K7H6xzDYdsUbg9B3KUC",
+      "collateralSupplyVault": "2FMHxyV9fuHVqpBysoFFSzooMu3Epm8GKeUczFZ8adT2",
+      "feeVault": "AomM6D5JFcrrRd7E5teUEtwJoTfw472wsnLpw7uh1oaC",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "Fqjbo3L4NAyzPcy6swv1XXLm1c7tUTKWMDkjCo9mfSDq",
+      "symbol": "bnSOL",
+      "liquidityMint": "BNso1VUJnh4zcfpZa6986Ea66P6TCp59hvtNJ8b1X85",
+      "collateralMint": "ECGGPdi5XYSntQvdNtGQqbU8vJaZnhucgrMcGcAEx96Q",
+      "liquiditySupplyVault": "DvB11zGUS4RxMGNNpLD9s93N4nuNsu6Yjhg1mhoLHjgw",
+      "collateralSupplyVault": "7eBNYWDTwNTH1v31f9AnYVV14HjCSYfJRh57xJrsWmbK",
+      "feeVault": "AWQoSNpBPF2zeD2p2QU8JMzqBNDDa4SJuqGP5ExNAVqJ",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "CkgQnPbuHHwSv2mNdAKH79TKSqC6jsyttK9yh4MPH6z3",
+      "symbol": "dfdvSOL",
+      "liquidityMint": "sctmB7GPi5L2Q5G9tUSzXvhZ4YiDMEGcRov9KfArQpx",
+      "collateralMint": "2Ab1o3bB6DMBm4Y3MrhWbYpJ2Y56VnLCaVpMvezLd6aK",
+      "liquiditySupplyVault": "ABXjerwMyHoTJ28yPv8RAMPU6XimqNCzx65kintzEbEU",
+      "collateralSupplyVault": "2cKmr1QVxdxLRNe8TgaEPfCTHK3maVjJTVnHCPFHQdek",
+      "feeVault": "6zt8SDdL7zvU3RY8fPVysijUvMx4t2tNiqEhCDLaiXCe",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "Hcz1o77tF9TpdEHcvrx29tz7SBKoQEwJA1wuJqGZYnTw",
+      "symbol": "tBTC",
+      "liquidityMint": "6DNSN2BJsaPFdFFc1zP37kkeNe4Usc1Sqkzr9C9vPWcU",
+      "collateralMint": "37cmWYYdAC88pQ4tGBu5ae28NctvzkNYG7w9xGHNeTPc",
+      "liquiditySupplyVault": "J2Ex2efY1e9TizMrjFQqtqGTwNBx888GTctHEkWemThV",
+      "collateralSupplyVault": "3mAggM7aVRtqSDgVpVUdDddbXxqr2pa6x6AcHDUrSMSM",
+      "feeVault": "3dcwK7m1UQNfm9UnLMq7H2sdN1UXctQp5jucDUUE6M2K",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "Bpc4kAh29J3YDQUMJJdGdr1zBAhTQjC48R1B8YTWudsi",
+      "symbol": "FDUSD",
+      "liquidityMint": "9zNQRsGLjNKwCUU5Gq5LR8beUCPzQMVMqKAi3SSZh54u",
+      "collateralMint": "38HzfrjShkT7fRzYxyoEZeoH6vhNBmJoHrefzzBENEK1",
+      "liquiditySupplyVault": "77NygHBchudmJPaWi8ak4vNVmuJa1JD5rFDBthxhd6p3",
+      "collateralSupplyVault": "FFfZKxWhxtxzGwx254bejhediu316F2A3B6JML7CEuxy",
+      "feeVault": "BgbnaacZDXevBWzhBNGddhz5qWvo3GPu1VoE2Tja3Dcj",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "8qnVHjKMcWAdkFnKvmRigj9J7UAVj2ooJ83GfeNn2DpR",
+      "symbol": "fwdSOL",
+      "liquidityMint": "cPQPBN7WubB3zyQDpzTK2ormx1BMdAym9xkrYUJsctm",
+      "collateralMint": "5ECkMZLtcwnD4s5pdYDg4tpeXjGFZtsteXBfbCdS4wxf",
+      "liquiditySupplyVault": "CeaWp9abvGqdB4SBJufz7RpZbfHneuhQimKU7MKCayhx",
+      "collateralSupplyVault": "BykirX7HAoL4HDHJ2LZpBSJbdrb5fZ1jTEwk4hi36Q5t",
+      "feeVault": "3qM71jqFY8vYwWTZ77AVdk868W2TYEKFTofWPQTuBe77",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "4AFAGAm5G8fkcKy7QerL88E7BiSE22ZRbvJzvaKjayor",
+      "symbol": "JUP",
+      "liquidityMint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+      "collateralMint": "CAcPXMKSKWofmRQzLAJ9HbAPYVHY7UXgQasyyqAhqE3F",
+      "liquiditySupplyVault": "4AWAjssbahfbzS7Qs3DJ7588CsCKyNPYcVw9ztENtv23",
+      "collateralSupplyVault": "4nDo6pJrD8iirtYB7T3PGjL2iJBbQamAfrb2cGLMxHCz",
+      "feeVault": "DRUkn14EVfBfiQy6br9WZs5ib8ij3R2xCChvjgFReVEg",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "Ht9NoB1udjpRqws1sCw1j2dL7MeTDHYCDdDFkbc1Arst",
+      "symbol": "bonkSOL",
+      "liquidityMint": "BonK1YhkXEGLZzwtcvRTip3gAL9nCeQD7ppZBLXhtTs",
+      "collateralMint": "B7gk3NA2pgjUzoWsURa31epTqfhvNHavMk5REEdRgTtE",
+      "liquiditySupplyVault": "DdFQdzd27qYMhGeSjLXgkzfGSzr4j2hATyWkETyPvUsk",
+      "collateralSupplyVault": "HSUr1aRtzAA6LDCaE4uLTsT4uu4bHuKrkAxEJ9ux81Yj",
+      "feeVault": "52fePGjimKRxesryiVnVuFAmYmPNji2ENHVvbyQqwWXk",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "B5uYvxUcwX5fCB4msGU4DaHh8k6fsSkKHNboy94F9vbt",
+      "symbol": "hubSOL",
+      "liquidityMint": "HUBsveNpjo5pWqNkH57QzxjQASdTVXcSK7bVKTSZtcSX",
+      "collateralMint": "3EEePyXDrxqyZgVGh6c4N52rdnbA4dVuTNCFu7yGA617",
+      "liquiditySupplyVault": "HsT1ceN4BAkKHBARnciNHuwzbaHbWJkkrZibQwHKKuZw",
+      "collateralSupplyVault": "FuHetcCFnWo6CiH31f2jUWuVW5rWzMeocvLT2jwLCEKa",
+      "feeVault": "HCummBYQBNyC5oSmejsvwK2jv8B3kBD4Uv2erkKKNCpJ",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "4Hyrqb9Mq7y1wkq4YoqHkPdPx3VQyFY3mxMj67naC1Cb",
+      "symbol": "xBTC",
+      "liquidityMint": "CtzPWv73Sn1dMGVU3ZtLv9yWSyUAanBni19YWDaznnkn",
+      "collateralMint": "3mz5bMBRcpf71uH5A6mVrgrBfBZ5qfyXc36a7Gh6sMsB",
+      "liquiditySupplyVault": "FT8Kf9pcawxAW7AuoKoe48LXsz6E2tS34oR9SJLMq5HL",
+      "collateralSupplyVault": "ATdJn3SDmTGYqsaMgGadJfxvS9nYF6jR9vr75RfXejT",
+      "feeVault": "7zmoU4ZP1MJb9HJSiNfcAzxWt6bu9CsYNiyqHnnb6hHY",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "9JB9EMxEp9gZy3i1jqD2yvNYWKRZCP6f3drdQw853swH",
+      "symbol": "STSOL",
+      "liquidityMint": "7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj",
+      "collateralMint": "3xcWMRiK6hRnBemUrreLt87KGkaKg4gi4io6m26Zhzjs",
+      "liquiditySupplyVault": "9oiLwWmJXViXp2AAoFUV4rFmhhq4J1gG3h8iVrDfxfvt",
+      "collateralSupplyVault": "BkyJ5GGwbazDu7TYDUmgZtqPjhyoDV8BEnQ636cHbf2c",
+      "feeVault": "3kmkMhW1sEYmEBhVidHSssMxqeUovw1nDgs1cA7WR5py",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "febGYTnFX4GbSGoFHFeJXUHgNaK53fB23uDins9Jp1E",
+      "symbol": "ETH",
+      "liquidityMint": "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",
+      "collateralMint": "BE5LqGwfAPYHEGjqR48C8CUu1nCP9BbJwrDUhB141rnL",
+      "liquiditySupplyVault": "GRGmgWor2PX3sNkoA5wZuNBBYoCnZPoiAufAVvG3WDEi",
+      "collateralSupplyVault": "4hGzrrHWyddMwPedf8vdTW1vCPfWQrT3mu6r67kqEMjx",
+      "feeVault": "7rGJZoL3FEFmH8YCyE329EN9Uq7a2q4gYHoEhVswofzg",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "HMCXsf1jFUDbvGGhvUzCzwkKbmUhxhxz7gYZwXpTuReT",
+      "symbol": "laineSOL",
+      "liquidityMint": "LAinEtNLgpmCP9Rvsf5Hn8W6EhNiKLZQti1xfWMLy6X",
+      "collateralMint": "9MEnMKMFNhXg2Ut2WHbpu6CqnB5XmdSZC85oHFZzExhK",
+      "liquiditySupplyVault": "GBty2bfL5sS74eaERsbXuoyefjJERyANsqjutmRSh2vS",
+      "collateralSupplyVault": "GamYYstwyacpNPhK7JfGFTpTNKw1U5sr1rv823Pb1ARC",
+      "feeVault": "3J1dAtoc2iCYY8dyfRsM6BX4TdxGcDqnU7WPniH8FmHs",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "GhGPbkWmPjSkbkgZbhNGBTxzwQKjqDpZwNfaf2gQKgdG",
+      "symbol": "UXD",
+      "liquidityMint": "7kbnvuGBxxj8AG9qp8Scn56muWGaRaFqxg1FsRp3PaFT",
+      "collateralMint": "G9KyXbtRmJ9KBpSVRhW5BAVK4EmNjDYjY8KTMgQ3465P",
+      "liquiditySupplyVault": "BD42Tzzh2DBiL4aqbNPP46MRTom451Aa2vPuHgVCrrqD",
+      "collateralSupplyVault": "6pZVptTrKfEkpZTXhKSpY53kvgXnvV66vQTEne8SUQdR",
+      "feeVault": "DQy24g7nJ54ekY4RmgxzRPeyURXQspdRi2XwTx2znJHm",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "FPAwg5jadDs8AvUtvtAbit2RCZdkZES6yY5X6nCSuEw9",
+      "symbol": "kSOLMSOLRaydium",
+      "liquidityMint": "3Fb5DMRWoBLWD36Lp4BtG41LaFjVeEJNCH9YLNPYdVqj",
+      "collateralMint": "FUrDoTiCfsh6whxFZQRNWa2PYDfzRSLng9ZG59bUQ2Vh",
+      "liquiditySupplyVault": "6kF1hRfx9nMnSnkuBtCXA2xYCcyC23omhDXJx8V6dLRG",
+      "collateralSupplyVault": "vMhkQSKX1ezV3GtiUUVTFAz49JRhFWocGcKZMuAf3B9",
+      "feeVault": "4nEuevAk2d5EDpAiQcUqvwRqT7GkZCW8sGoQapoJgcEr",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "2EXNMnkHE5TY1wTwA9UKi3wpTvoXpFsDPeGC5GVttu5F",
+      "symbol": "fBTC",
+      "liquidityMint": "3orqhCKM5admbcHkHQhRAEKbXhUT5VPgsQqz7fBa6QdF",
+      "collateralMint": "CAm9RQNGQd6GrtxTf79guFRxxcgGixehEwQL8hiPSMuW",
+      "liquiditySupplyVault": "1THuvGLWjpGDiaiQCShS654wgZxYWTtCMXGEbnGU8J1",
+      "collateralSupplyVault": "8iJn9N184dYLmw44hxWJbgHGaJncfu5Ncd7U92BZ59zc",
+      "feeVault": "6PZyLYwHEP9LmPubtAX3rAwWAuqBv2FXbY5GgSPmK4PZ",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "DGQZWCY17gGtBUgdaFs1VreJWsodkjFxndPsskwFKGpp",
+      "symbol": "JupSOL",
+      "liquidityMint": "jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v",
+      "collateralMint": "8euYpQt56z9hA2ZcFCQuWK6gAptrLcJuMZ5PtMpUwbuY",
+      "liquiditySupplyVault": "FbbgvvnwfN25cyX52Zqut2ZTbtvCWZbhKS177gfdUd6K",
+      "collateralSupplyVault": "9w2hfobbGi94e7mg1HxchKuhpfHJ2CENnAfyeezDF46c",
+      "feeVault": "DPGb1ypG5nG1pnafyfv4Yg4gwMzvXn3bvVxPaPBgSyFw",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "BHUi32TrEsfN2U821G4FprKrR4hTeK4LCWtA3BFetuqA",
+      "symbol": "USDS",
+      "liquidityMint": "USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA",
+      "collateralMint": "6nnt6N4Ay9tBeMWnVWKS24hDtE6R3fshi5TteUcSKJcQ",
+      "liquiditySupplyVault": "4aE6ow1YNDm9MRNdk8HRzFFzvs9FXBgEttWSMrH6hupD",
+      "collateralSupplyVault": "3FVdzLJ8tqBmuNuSLADJFKFaJQt6F9x6zAAHCoLUFCJA",
+      "feeVault": "3PfZfx8cjfW8EADSSaDt7fsmBABKdTU4Zjrf4HWjJBwa",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "AxuWrPrJfwrUTvCWRxpkSQct6q8k1YSJzxhyYw2AAmv2",
+      "symbol": "kUXDUSDCOrca",
+      "liquidityMint": "4G9USgnbg6fDTQ5AUfpCjM89zqbzWj32xfqvsaAu66DM",
+      "collateralMint": "9ArykePzWjizyfYg9eEZXHyqwBccSL5wsqKzsHsXkTQV",
+      "liquiditySupplyVault": "5srbg3QKPf2mSX5Sb8FtK6Azzu33fNkpDXiGcWtqy8Vx",
+      "collateralSupplyVault": "FQGzcdrx4aZsH2oRRKUKPUwF1BpqsyYh4mHDfgRBne8f",
+      "feeVault": "4BhepH6zER2xzbZKLq4uQgvLq2xFKSGb84Dj4Y27hNjF",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "5YpGenXaAowj4HS33AvirVb8P4tgue7S7YaY6MyYZ7LD",
+      "symbol": "CHAI",
+      "liquidityMint": "3jsFX1tx2Z8ewmamiwSU851GzyzM2DJMq7KWW5DM8Py3",
+      "collateralMint": "2d1aTmJMJozqmTLhKKhQorkj6NZTRtUt69YtAvzjtJVK",
+      "liquiditySupplyVault": "6G3qPn2NSBdL16zgXEGewGVYrMihergxGSzbBtKnaHhh",
+      "collateralSupplyVault": "2DAHqtsuk1VmJ3A5t6Avh4r1HYuxJNow96foVnJsDvtw",
+      "feeVault": "8A53mhsXnLiXiefemzJ4hrE3jSMe637kPTGqodprKkeP",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "Ggn9EUzL5QQPM8JPsyu1MU1uD3rGJty7iXddLQnmxPyS",
+      "symbol": "xSTEP",
+      "liquidityMint": "xStpgUCss9piqeFUk2iLVcvJEGhAdJxJQuwLkXP555G",
+      "collateralMint": "2vyA7u8xt3m8uESanDeRKqZbeEriQjSzVWgfRNDJQC6v",
+      "liquiditySupplyVault": "AJgRcWCbY6UgTnAPUAb1RpVjHMqC54PHJJUoePL2DrZJ",
+      "collateralSupplyVault": "HddbHWKNJcX3Z8oqWtjE7tNibw4szKuGzYg5UesbBmKJ",
+      "feeVault": "6cADKXBne9Y5NHP7rQpvY8Z7gC5335hzZahRvrqqoBCM",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "2fnxDPcLAZzYy1pJTMFNUo2mxWHD4ggrEgTu6my54Npm",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "37Jk2zkz23vkAYBT66HM2gaqJuNg2nYLsCreQAVt5MWK",
+      "symbol": "cbBTC",
+      "liquidityMint": "cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij",
+      "collateralMint": "B3ieCZaTUp8qM9zbPqH2WDhzWpwrvHB2Q2aWB25DW97U",
+      "liquiditySupplyVault": "BcPpdmg4vxXSenvkp12XbVp6XnzwKChnzfNa6cQXLW96",
+      "collateralSupplyVault": "hY6yiVepYxxv6dpzayYQ9LnhkX7yrFFpep3oxFRKRgi",
+      "feeVault": "7NSusA45pkEApHBVqS5CqnWW9WR98uEUT6d5hDPdgD8A",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "75WrtSz7rLCdBvAQhtHi8M2jC8HnpT8iUxcYkdeawr37",
+      "symbol": "kSOLJITOSOLRaydium",
+      "liquidityMint": "GYiUmJ8reqYAdTQtx6CRFawHqPXx9yzkUFvaUVE8PskP",
+      "collateralMint": "DdG9rfSuhCYByrJEmJuHMf9BEMRJPBDs9JiZD8tStT5s",
+      "liquiditySupplyVault": "4oFVUAYbkVZX6CqmfKPCYua3LpuKHxjCE6sgpbmcjXn1",
+      "collateralSupplyVault": "Enf7PV8fcxFXkx12B8J7mowoCtBWrannME1dX4vhnQcw",
+      "feeVault": "HvN7JGNg9FWe9p1zLN83tNtVHR732YfAkeco61RFm1bV",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "EVbyPKrHG6WBfm4dLxLMJpUDY43cCAcHSpV3KYjKsktW",
+      "symbol": "JITOSOL",
+      "liquidityMint": "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+      "collateralMint": "9ucQp7thL38MDDTSER5ou24QnVSTZFLevDsZC1cAFkKy",
+      "liquiditySupplyVault": "6sga1yRArgQRqa8Darhm54EBromEpV3z8iDAvMTVYXB3",
+      "collateralSupplyVault": "7y5Nko765HcZiTd2gFtxorELuJZcbQqmrmTbUVoiwGyS",
+      "feeVault": "C2PyjpFRtbQjFjHNB3HDcoQoLP7VJ9NQn6NFJZMueWfB",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "8gVpWfWDCtCcUX1meSphqqpyWBceLCcrs9yEXwKKjQrL",
+      "symbol": "nxSOL",
+      "liquidityMint": "sctmTAsDn4tLUcemqoqYijfuRkiEfAMPi84PNq2EueR",
+      "collateralMint": "9YZeiTwWz6UVzLeJdrSGyLZY3iLVRRxDwsHQyoYBH8NG",
+      "liquiditySupplyVault": "6JbDFb63BrXoHf4XkVEpRZLS13gyC8Phb5YQmhEBLave",
+      "collateralSupplyVault": "54qDfnUQYJMmudA5TWY8ZpLT95pZ4h4ZrGzWghSeZb1e",
+      "feeVault": "5MVb16vC83tEVTZao83k8qFt1yfk3JZJGrneFoXcQpD",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59",
+      "symbol": "USDC",
+      "liquidityMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "collateralMint": "B8V6WVjPxW1UGwVDfxH2d2r8SyT4cqn7dQRK6XneVa7D",
+      "liquiditySupplyVault": "Bgq7trRgVMeq33yt235zM2onQ4bRDBsY5EWiTetF4qw6",
+      "collateralSupplyVault": "3DzjXRfxRm6iejfyyMynR4tScddaanrePJ1NJU2XnPPL",
+      "feeVault": "BbDUrk1bVtSixgQsPLBJFZEF7mwGstnD5joA1WzYvYFX",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "6U9CnJYCQwHUEmf4Pq4oGVKHVvD29wZvtPbFNjYmgjaF",
+      "symbol": "bbSOL",
+      "liquidityMint": "Bybit2vBJGhPF52GBdNaQfUJ6ZpThSgHBobjWZpLPb4B",
+      "collateralMint": "4VXTkcCBqqkpVABm5i7bKzbMo7aRWD4fr1W5gNnvLSK8",
+      "liquiditySupplyVault": "5cda5cLwVatEY1z3tJ3LmVe9tzsqCeHv39HtyUtTpNAM",
+      "collateralSupplyVault": "7SiPVFywm3VXM2szWGCzAuCL3jek1Sd5db2CAFKV57Aw",
+      "feeVault": "4tWdoYyTgaMFhHi6vVhVHLnZFuzJMnLCp6q7XZJPJajD",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "64AZMUHLB6NYvQSt41JTer4v8NAFDCz5sUPb7dYpCxa",
+      "symbol": "adraSOL",
+      "liquidityMint": "sctmY8fJucsJatwHz6P48RuWBBkdBMNmSMuBYrWFdrw",
+      "collateralMint": "94fVLm9PX7WM2zrqCCY1P69NY2Hj81B3LxtGRsUFskrL",
+      "liquiditySupplyVault": "3tYeKEBZxcGcuZiEoDMQvn81q4MXnCzqSnUUUcWpPgeb",
+      "collateralSupplyVault": "F7CV629VXakovusXcg4DXRJFtYprh8HRmKagtT6PksV8",
+      "feeVault": "9Pz8eoDj9LtSffMBN9gHw6ivXPutjUh25nTyj8DDSRze",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "2gFjdQLFaFqTKMv4nFGMAP4bX2F5KAsyiJn8yZQHPKSE",
+      "symbol": "stkeSOL",
+      "liquidityMint": "stke7uu3fXHsGqKVVjKnkmj65LRPVrqr4bLG2SJg7rh",
+      "collateralMint": "J4EyVMRa4KpttzXUkY7gPzx3HiJNDSAYZV5fu93Wy62t",
+      "liquiditySupplyVault": "4AM9UBaNQhHNuAP9SbkJJTCm4gf1U9EsmHazVsnuJDC7",
+      "collateralSupplyVault": "2wtujiVLkvJRUHnrCHS6C4WZ2ygXpp4C7WiysJf7x6HS",
+      "feeVault": "9GZF85sCnoSLmE5c6Ci4RajRRPHbvRq8iexQRMhPSpxo",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "9Ukd2MSw5RvVFaN8jLhWxjHLEGiF1F6Hf7v3Zq5hZsKB",
+      "symbol": "JTO",
+      "liquidityMint": "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",
+      "collateralMint": "FEHJup4WNxmpBUuiRbF3iVdHptUpWNreijXDoh5Nc5HM",
+      "liquiditySupplyVault": "FBhE6TAt6vtpcZaCKNkttAJqzTLGpfYDchfziw9dgFiL",
+      "collateralSupplyVault": "B8N3jrt1hqJ9ZcJMp1vf7NGoNJqMxWENZoh2om9G2pi",
+      "feeVault": "AnPmL888LiRSju3DEdMN33UFt6nM8HnTPWU8Vm8HLvYa",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "G31zKdH2SkDZPhmoQraep5xbTSPyk3VZxAeBdC3nmq5J",
+      "symbol": "STEP",
+      "liquidityMint": "StepAscQoEioFxxWGnh2sLBDFp9d8rvKz2Yp39iDpyT",
+      "collateralMint": "B4qtzMZF6N755jejmNzuqFpwPTnqjc8zRXWDnTWZKHPQ",
+      "liquiditySupplyVault": "GNSVanAqJAKvT89tPqdkJoyKDti2vbEv6ZmumBZcgVQe",
+      "collateralSupplyVault": "DRbcT7cET77XSuSEsBKkyKnqpsdtjEVhnRZBtL48VF6F",
+      "feeVault": "EkTfYtkDv8xPH61ayZfeN5YnLuUDi3WcmoPr9BViEvvV",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "d4A2prbA2whesmvHaL88BH6Ewn5N4bTSU2Ze8P6Bc4Q",
+      "symbol": "SOL",
+      "liquidityMint": "So11111111111111111111111111111111111111112",
+      "collateralMint": "2UywZrUdyqs5vDchy7fKQJKau2RVyuzBev2XKGPDSiX1",
+      "liquiditySupplyVault": "GafNuUXj9rxGLn4y79dPu6MHSuPWeJR6UtTWuexpGh3U",
+      "collateralSupplyVault": "8NXMyRD91p3nof61BTkJvrfpGTASHygz1cUvc3HvwyGS",
+      "feeVault": "3JNof8s453bwG5UqiXBLJc77NRQXezYYEBbk3fqnoKph",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "StGKGcLQoTsWzQ1tFY2bWqrdiuBhqdFE4niiAutQxQB",
+      "symbol": "dSOL",
+      "liquidityMint": "Dso1bDeDjCQxTrWHqUUi63oBvV7Mdm6WaobLbQ7gnPQ",
+      "collateralMint": "EJsh17Y4qw1N7WzTLmGiEHPHDA7ZnRZqREW5y6myUVv6",
+      "liquiditySupplyVault": "EyhsTc5zapEWfuigEfUmPAywmsq5VQDrWscj45cKrHo",
+      "collateralSupplyVault": "C3yT2C9DGa8e7u8WZQWr2KqJKzp8Lqe6bCnskG3K5nZH",
+      "feeVault": "9bM2XzjF4ncpvuKfkhmvWF6YfgFPv68ihANeXD3dj3L8",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "57U9pEC8NsWvHgWywd2xHTRkGQzWWYsWivxYRhtxZrLB",
+      "symbol": "kSOLBSOLOrca",
+      "liquidityMint": "9HB4kAMLSYfGFfN142DKMyPyHyZQ8pXF8M1STbDudodY",
+      "collateralMint": "9uvxPXzVYWe8qb7S4gUBqsvASmRMVWo5GSAcMmdZ1LQr",
+      "liquiditySupplyVault": "7czHgMf1mgWWhLoXYy1FJtnLhvmCfnSUc4fRYLQkjcix",
+      "collateralSupplyVault": "CHjxiTTqcfjGWmJvdNixYXjKSg5n9pRLXSh8XfGPtctv",
+      "feeVault": "2Mnj9nXKf8vax2jR9HbXEWMsviig3KkMa4RM6WXHB9G3",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "4eUxuaHSHNTftaui3XVW32d2Ph2hKBLpuMP25gQ5MqF4",
+      "symbol": "wstETH",
+      "liquidityMint": "ZScHuTtqZukUrtZS43teTKGs2VqkKL8k4QCouR2n6Uo",
+      "collateralMint": "2Nk9GpQU4BuJB73vag32GUXgyxqSRFNgijXsx8xefkCz",
+      "liquiditySupplyVault": "3VyrRzpif94xAATHxERnDyJuiVPJGXeNd4U77Kcq47M1",
+      "collateralSupplyVault": "EowPfYbSQCwmwgeURXoMThygiYvme8URwQvYCmaW5izW",
+      "feeVault": "BUYC7BvVVcznNiySmQKMccpkTBUBaaQBHPG2hgUb7pLt",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "BvafE5Sm6rLrBbVRtJ2FkCzfNJQ2TjcL8bvPZULUDYrt",
+      "symbol": "cgntSOL",
+      "liquidityMint": "CgnTSoL3DgY9SFHxcLj6CgCgKKoTBr6tp4CPAEWy25DE",
+      "collateralMint": "DY6irtAtWbU3Xn6Z5p2g9HSBBir5Q9D5MLh5CrtbJ9Fe",
+      "liquiditySupplyVault": "6jcTTL6Usm2i87XMSerXTo3dVpx3jAuuhuVxPLLHePs5",
+      "collateralSupplyVault": "CrqN6VEbSdf3fTzkrrRWF4UWHMwB43Hq7NMHHZi7MBSP",
+      "feeVault": "3XEzCp6B3Sko7FM9PaydQ5pzryqKLamH8EZVieLhLui8",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "2UFz8kwraHybFyKhGQRwAsE5NtNpAhWs2X5grGoS7hnQ",
+      "symbol": "picoSOL",
+      "liquidityMint": "picobAEvs6w7QEknPce34wAE4gknZA9v5tTonnmHYdX",
+      "collateralMint": "8uCVbHrv4RW6QRaWG95guL4eFBk1rkFq7zYzb9QKCVGm",
+      "liquiditySupplyVault": "Gm8VfrmSViEaVjgzQonvV53EK834hcHXRE8DpfxjJe2b",
+      "collateralSupplyVault": "78HxBCvtdPxqX2iWGxw5rryy4MTp6PZrW4q2aFPfxfLb",
+      "feeVault": "BXgRdoMDfBxenE9uaAtZFqnU8W9fz3bA3bvRabWe3Hty",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "HYnVhjsvU1vBKTPsXs1dWe6cJeuU8E4gjoYpmwe81KzN",
+      "symbol": "WBTC",
+      "liquidityMint": "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh",
+      "collateralMint": "A2MFkvvT3fhFg3DmHBzBvgxh8iF29WFjbeYSpPfLPfhb",
+      "liquiditySupplyVault": "3y8JYyF8HPPK5YeUzxPPEvAahdPX4Z5wdZTiVc1atuQi",
+      "collateralSupplyVault": "7AcWkPj1yafjgxhYCkaoxCtFapCszXeVAMnXnGuDf6AC",
+      "feeVault": "DvJsvTFiqYWJCzZAZGd1k4YwLDWcU7qxtg3MyrdLgwZ6",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "A2J2CEwmwa9aTKbEfNoik6YTyNep9GtvNjU65okWYhwn",
+      "symbol": "strongSOL",
+      "liquidityMint": "strng7mqqc1MBJJV6vMzYbEqnwVGvKKGKedeCvtktWA",
+      "collateralMint": "3wVaxLYCKXoqVsxF2QRikYEFvhWGDXdc1BbVT4myZJzq",
+      "liquiditySupplyVault": "91eZvHs1J6JUeis7U48Ykrsudvb867VfnZBdyYKiaTyu",
+      "collateralSupplyVault": "GdsQjiZ7o338Fs9HEikddYhqNNUq67eZLZLjsJ3aeJWz",
+      "feeVault": "AKFXbiv4Q2XCerTYt4pKprFWVb5wWRea4ZCx58tgznUb",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "HV9KsS5mB4b9CFhDJVKdfxWBAomYfUk5PeUsdgMQsUrB",
+      "symbol": "pSOL",
+      "liquidityMint": "pSo1f9nQXWgXibFtKf7NWYxb5enAM4qfP6UJSiXRQfL",
+      "collateralMint": "2CZr3QJSktRmE2WqpFoyc46jWzP2ZmZHuQk4hXzC159q",
+      "liquiditySupplyVault": "CorvqWkB9rRNQzwXXVyg52ASor8aDpFkEwaYnFhD2vnF",
+      "collateralSupplyVault": "JB1i9Mo6SrjkwrLbLaeqfy6FPEQpnno2PfmchkGdFUAA",
+      "feeVault": "BQUkBv9EijTVmBRjgKqNpPEvDtYP3uYDMM539QGcM42N",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "2gc9Dm1eB6UgVYFBUN9bWks6Kes9PbWSaPaa9DqyvEiN",
+      "symbol": "PYUSD",
+      "liquidityMint": "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
+      "collateralMint": "2dQkXr1e9LBvT2QcfKrzZaWY6gGAAVoCjLgkWFk3Mhkj",
+      "liquiditySupplyVault": "Gm2itCNPBpBSSrgCA194pmErjwHAFVpvBBFvpdTF5LuJ",
+      "collateralSupplyVault": "6LNyxFoeThPa3kPAWUYjEXPMsEd93VQUo5cuJfxcXaGp",
+      "feeVault": "BcLJRx7GbyX2Jj8RFpYDnEE47Tm36wSskLnm7ALarEC1",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "FBSyPnxtHKLBZ4UeeUyAnbtFuAmTHLtso9YtsqRDRWpM",
+      "symbol": "MSOL",
+      "liquidityMint": "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+      "collateralMint": "HTHAb6CigDQXtKuYX1Tad5hoguguRnRmt6DguosVsKWC",
+      "liquiditySupplyVault": "CQWUdThEbNMjcoEjGyCMTGXHpKvW1aB8JF31hKa1FQQN",
+      "collateralSupplyVault": "G9tjwEXduCMuz6PFwBW6o73Lu36MwhAvt2deS7o1MQaS",
+      "feeVault": "7Pj3hWhPjhd3mYYGyutQPSkXrm2wPN3VQvVzG3YBMfue",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "CExamod1Ai3d1N8Vh7sBjt5xbZzb2VmGMAFocf7fxCzm",
+      "symbol": "hSOL",
+      "liquidityMint": "he1iusmfkpAdwvxLNGV8Y1iSbj4rUy6yMhEA3fotn9A",
+      "collateralMint": "6DHsvGuiy4SHnmcsdwGrq5L5CcvTbCwXzyfUULmEUHe8",
+      "liquiditySupplyVault": "3mLgvnLFbyq4U1pLYvLQu8t3ZJ1Rjzq1dby6fWi7bfqi",
+      "collateralSupplyVault": "HLnQARKEe1F8BUR1wcHG1XzS9ichjDmFTNv7WKea9VZe",
+      "feeVault": "FLpnLwHU2LJ5je71pwBSZ2QQywdWYHwa9HEfYthryLaC",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "HD93Fq3gmVh3J7euJJ5MBw8Ph3ebeMFS699JQePN4XgN",
+      "symbol": "jSOL",
+      "liquidityMint": "7Q2afV64in6N6SeZsAAB81TJzwDoD6zpqmHkzi9Dcavn",
+      "collateralMint": "BkwgQpQmd77FotNDgGe4j5TYP1omrzdfrdT9qr8KLZFm",
+      "liquiditySupplyVault": "BkCTFeGZ19hGZCo6dG4uBXEF9cC5LbTEMpKxwJUsnFFM",
+      "collateralSupplyVault": "DUbRgdtD7oSNyzpnzLoEZaJH1ik52w2sGQoJJv7bqGsb",
+      "feeVault": "DRgDn6StpWF9EfQ9a1dKvgYhmuV2Ut791g45wT4pSsQP",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "GFLLgX9V6PR1PzhgsGzeyUddpt2ws2PBRAxRwoLrboGp",
+      "symbol": "kSOLJITOSOLOrca",
+      "liquidityMint": "Dk2X1HCbwJae44P7FpqdFoeT6LEw4JVyyHvZMHUzHWbi",
+      "collateralMint": "2KNot4k3xygWmByxihBZr2Fm1EHQuWQTAntkVKvh3CM1",
+      "liquiditySupplyVault": "FJVBwqhPN2KtRCC8GUkde5Ae73ov5sPKR3GNrE2eFCmy",
+      "collateralSupplyVault": "GihiPozDoSNvjuFqBsDJCdNWJeLt7x6Tgy9qN7XEYeuW",
+      "feeVault": "3NNyDJeb7Htkz8MqLtyM1tQtWseUw8N6i2enZzi7LPGD",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "ESCkPWKHmgNE7Msf77n9yzqJd5kQVWWGy3o5Mgxhvavp",
+      "symbol": "USDG",
+      "liquidityMint": "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH",
+      "collateralMint": "BG6gsv8goyoJguEbLquUZFNiZ8aGTXgo4DyH9h8z9qao",
+      "liquiditySupplyVault": "DGBo8HmL7pBWBZLGePjHQ73JKRE37HVZ7ZbjA2FYUZHZ",
+      "collateralSupplyVault": "BKGYpZxa2QpTSiRV7Jwc8P8cJaUQwq7maxREFFxboW6m",
+      "feeVault": "39M8hy7EUypjxsHqsZQmNQqXGpknCwoCXzF7r8WMBbAs",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "EGPE45iPkme8G8C1xFDNZoZeHdP3aRYtaAfAQuuwrcGZ",
+      "symbol": "EURC",
+      "liquidityMint": "HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr",
+      "collateralMint": "H6MFD7kvZ1qtTRtf7SpJzMFAr3wds2vKpQMokNsCfj3R",
+      "liquiditySupplyVault": "DrZeFpbzMXmNnMqsQFngQeJiVgUpX8vaCHoJKj9FGMYv",
+      "collateralSupplyVault": "B5jk5tYLx7yrzvbkEwUbVUP5uDfkVW5V9xi9ibsNWrJm",
+      "feeVault": "8rJMVUAd7YthJqTXaC1MMx4eF9X7VndGjV9frVZxq6iB",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "CHBNUPdjeo2N5QkZY2uAqv7TW5EbCTMsfvaskCBuxbom",
+      "symbol": "vSOL",
+      "liquidityMint": "vSoLxydx6akxyMD9XEcPvGYNGq6Nn66oqVb3UkGkei7",
+      "collateralMint": "4LtX2tsFxLr3hBpNeuA7Ka92SYEcwXvA1NC8u51L8zB9",
+      "liquiditySupplyVault": "6P5r6VmS7FL8fZa3h2oGbEbc1mZppHq5orHFee6SL3UE",
+      "collateralSupplyVault": "616GRYEFMU4EnAyQuwP3Z4Hn1Ydxb8ZrWuis58H7LVp9",
+      "feeVault": "5urs1vyjanDfDiw4RoK7QkqThGLeQymH1ETNZGgRfgH4",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "ApQkX32ULJUzszZDe986aobLDLMNDoGQK8tRm6oD6SsA",
+      "symbol": "CASH",
+      "liquidityMint": "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH",
+      "collateralMint": "9ZJtGcX6BfVY8Uu8TTxcv2H5XJgMZh8WgFkoADwsYjZi",
+      "liquiditySupplyVault": "7Emb9oP2pbrHvvfueXEbt1DbT9Qet454jgQmmz8yNZ3P",
+      "collateralSupplyVault": "8vUTaDwzH1iGLKFxGZqxWtHsy2dzKQ9FxCCx6A6CAAVH",
+      "feeVault": "9aoWLYcmohq61sKfJjr9gqGbu9DzNzzM6iCj6zDwkSZi",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3NJYftD5sjVfxSnUdZ1wVML8f3aC6mp1CXCL6L7TnU8C"
+      }
+    },
+    {
+      "address": "6vKCRnEzrxRS1NybsMVEyNE3ztFAxCz6WusiiGft1PbA",
+      "symbol": "USD1",
+      "liquidityMint": "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB",
+      "collateralMint": "puPqg8sFAAnPohMg7WYe8fetnukEYdpQd7MiCoiaQbi",
+      "liquiditySupplyVault": "F9iyEcHTJvMdihj2gJmCVXtrNaac1Vv8jzkiQq6k3kty",
+      "collateralSupplyVault": "4hyCMBQPxpy3rsj3RCvTuGkfgxaq98xa9hCyXxv2EGmY",
+      "feeVault": "GzpXwc28f7gkqBrHKSxLwUZq7PtPMs5yhVmq13s4u9AC",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "H3t6qZ1JkguCNTi9uzVKqQ7dvt2cum4XiXWom6Gn5e5S",
+      "symbol": "USDT",
+      "liquidityMint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+      "collateralMint": "B8zf4kojJbwgCRKA7rLaLhRCZBGhgAJp8wPBVZZHMhSv",
+      "liquiditySupplyVault": "2Eff8Udy2G2gzNcf2619AnTx3xM4renEv4QrHKjS1o9N",
+      "collateralSupplyVault": "CTCpzgNbPwWQSYamu4ZomgFuHf8DUGwq8hSYWVLurSJD",
+      "feeVault": "ARCZqsnUpvPffquPjZR3sxpvScLQdbfZ5BGf3SZvyij7",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "J5oj3VKWQNKRZx3heWZx7JZC59AEDQ9UQwqqiy63nCuf",
+      "symbol": "lanternSOL",
+      "liquidityMint": "LnTRntk2kTfWEY6cVB8K9649pgJbt6dJLS1Ns1GZCWg",
+      "collateralMint": "7jsboNvtyxYAoyJ2kbfzPm3eFgN5rY2SKWovGvsyfX6F",
+      "liquiditySupplyVault": "EgJnCq2QZ89JBNfxgaKob3EAKna2UgBjHHpUZx2RQig",
+      "collateralSupplyVault": "34wTZDsFMqNLkNDS2ArqSDnBrBQNcEYsezEWJDTR34Yc",
+      "feeVault": "DHqBpaCHUHZ5CzbcVafScWZ41fE7KREeX19iKfmweN35",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "FMbsZf4HuQ1a8a7VdmALT3S8WRfu3EocphRKPXxRsfGd",
+      "symbol": "cdcSOL",
+      "liquidityMint": "CDCSoLckzozyktpAp9FWT3w92KFJVEUxAU7cNu2Jn3aX",
+      "collateralMint": "5Fr7qCEhjcGRcGLqC8EGuifnPbo33pXnNt13zREyHTCx",
+      "liquiditySupplyVault": "98yKLQA7QsU9ND1ejmSVbqnvfZ9TZqswtTedbfFFG1Ur",
+      "collateralSupplyVault": "69eXDLc9p6XQbPNiZx6A3fYoFa2YUX1dkxfYVuFo6bWM",
+      "feeVault": "8FTc6tzBmr2Fgy3cdWLvLFywQxMtztfv59aUuqtjJUgY",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    },
+    {
+      "address": "DaGyAQJrdkLCzYZiUWg49NV8vabDnhR7ETwLu5eQgL56",
+      "symbol": "USDH",
+      "liquidityMint": "USDH1SM1ojwWUga67PGrgFWUHibbjqMvuMaDkRJTgkX",
+      "collateralMint": "CXUgxmXQifBHjF6BvD3HQGgxnBEiFFFcbsGr7TUGC7Xn",
+      "liquiditySupplyVault": "DZyy6x2SrRSSpaWwM6fDgiqwkdqTqf61frmnvaBHuLT6",
+      "collateralSupplyVault": "BHGNUpgvgiheQE7J4X4HTJ2un6SGeBvxqd4rHQ15YLtw",
+      "feeVault": "28SXMtDSL7JT6ssJPKNEwdw5UmMsjvYw9LAe9tVtci56",
+      "oracles": {
+        "pyth": "11111111111111111111111111111111",
+        "switchboardPrice": "11111111111111111111111111111111",
+        "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
+      }
+    }
+  ],
+  "disclaimer": "Kamino CPI is NOT implemented and no mainnet-fork roundtrip has been run. Account derivation only."
+}

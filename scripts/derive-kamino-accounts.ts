@@ -25,7 +25,7 @@ import * as klend from "@kamino-finance/klend-sdk";
 
 const RPC = process.env.KAMINO_RPC_URL;
 const MAIN_MARKET = "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF";
-const USDC_MINT = "EPjFWdd5AufqSSqeM2qzH6oEgCG1kduA3s3z2nZ7G8mm";
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const KLEND_PROGRAM_ID = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD";
 const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const ASSOCIATED_TOKEN_PROGRAM_ID =
