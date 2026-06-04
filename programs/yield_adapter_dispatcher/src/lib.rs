@@ -7,7 +7,7 @@ use anchor_lang::solana_program::{
     program::invoke,
 };
 
-declare_id!("CP1io1rppTn7HDg8qzpGh629KG6K23ipcgtVZjWMtXmw");
+declare_id!("37fdMFG3eh91i7WYk4MgwYBGqoXK4dbpV73UUh6uxvtY");
 
 pub const REGISTRY_SEED: &[u8] = b"registry";
 pub const REGISTRY_VERSION: u16 = 1;

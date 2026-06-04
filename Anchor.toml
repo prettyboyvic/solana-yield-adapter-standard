@@ -3,12 +3,12 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-yield_adapter_dispatcher = "CP1io1rppTn7HDg8qzpGh629KG6K23ipcgtVZjWMtXmw"
-reference_yield_adapter = "CjGjc5uAnEuXBfRc9NKiNTxcvjxZA9snZ3V1MqKvJpoY"
+yield_adapter_dispatcher = "37fdMFG3eh91i7WYk4MgwYBGqoXK4dbpV73UUh6uxvtY"
+reference_yield_adapter = "BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1"
 
 [programs.devnet]
-yield_adapter_dispatcher = "CP1io1rppTn7HDg8qzpGh629KG6K23ipcgtVZjWMtXmw"
-reference_yield_adapter = "CjGjc5uAnEuXBfRc9NKiNTxcvjxZA9snZ3V1MqKvJpoY"
+yield_adapter_dispatcher = "37fdMFG3eh91i7WYk4MgwYBGqoXK4dbpV73UUh6uxvtY"
+reference_yield_adapter = "BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1"
 
 [registry]
 url = "https://api.apr.dev"
@@ -19,4 +19,3 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "npm test"
-

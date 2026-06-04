@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 
 export const DISPATCHER_PROGRAM_ID =
-  "CP1io1rppTn7HDg8qzpGh629KG6K23ipcgtVZjWMtXmw";
+  "37fdMFG3eh91i7WYk4MgwYBGqoXK4dbpV73UUh6uxvtY";
 export const REFERENCE_ADAPTER_PROGRAM_ID =
-  "CjGjc5uAnEuXBfRc9NKiNTxcvjxZA9snZ3V1MqKvJpoY";
+  "BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1";
 
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qzH6oEgCG1kduA3s3z2nZ7G8mm";
 
@@ -170,4 +170,3 @@ function writeU64LE(target: Uint8Array, offset: number, value: bigint | number):
   const view = new DataView(target.buffer, target.byteOffset + offset, 8);
   view.setBigUint64(0, n, true);
 }
-

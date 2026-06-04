@@ -2,7 +2,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("CjGjc5uAnEuXBfRc9NKiNTxcvjxZA9snZ3V1MqKvJpoY");
+declare_id!("BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1");
 
 pub const ADAPTER_SEED: &[u8] = b"adapter";
 pub const POSITION_SEED: &[u8] = b"position";
@@ -39,7 +39,9 @@ pub mod reference_yield_adapter {
         state.total_assets = 0;
         state.total_shares = 0;
         state.last_update_slot = Clock::get()?.slot;
-        state.bump = ctx.bumps.state;
+        let (_, state_bump) =
+            Pubkey::find_program_address(&[ADAPTER_SEED, adapter_id.as_ref()], ctx.program_id);
+        state.bump = state_bump;
         state.paused = false;
         state.metadata_uri = config.metadata_uri;
 
@@ -83,11 +85,19 @@ pub mod reference_yield_adapter {
         let shares_out = quote_deposit_shares(&ctx.accounts.state, amount)?;
         require!(shares_out >= min_shares_out, AdapterError::SlippageExceeded);
 
+        let (_, position_bump) = Pubkey::find_program_address(
+            &[
+                POSITION_SEED,
+                adapter_id.as_ref(),
+                ctx.accounts.user.key().as_ref(),
+            ],
+            ctx.program_id,
+        );
         initialize_position_if_needed(
             &mut ctx.accounts.position,
             ctx.accounts.user.key(),
             adapter_id,
-            ctx.bumps.position,
+            position_bump,
         );
 
         ctx.accounts.position.shares = ctx
@@ -286,12 +296,23 @@ fn update_position_value(state: &AdapterState, position: &mut Position) -> Resul
 #[derive(Accounts)]
 #[instruction(adapter_id: [u8; 32])]
 pub struct InitializeAdapter<'info> {
-    #[account(
-        init,
-        payer = payer,
-        space = AdapterState::SPACE,
-        seeds = [ADAPTER_SEED, adapter_id.as_ref()],
-        bump
+    #[cfg_attr(
+        not(feature = "idl-build"),
+        account(
+            init,
+            payer = payer,
+            space = AdapterState::SPACE,
+            seeds = [ADAPTER_SEED, adapter_id.as_ref()],
+            bump
+        )
+    )]
+    #[cfg_attr(
+        feature = "idl-build",
+        account(
+            init,
+            payer = payer,
+            space = AdapterState::SPACE
+        )
     )]
     pub state: Account<'info, AdapterState>,
     #[account(mut)]
@@ -303,7 +324,11 @@ pub struct InitializeAdapter<'info> {
 #[derive(Accounts)]
 #[instruction(adapter_id: [u8; 32])]
 pub struct AdapterAdmin<'info> {
-    #[account(mut, seeds = [ADAPTER_SEED, adapter_id.as_ref()], bump = state.bump)]
+    #[cfg_attr(
+        not(feature = "idl-build"),
+        account(mut, seeds = [ADAPTER_SEED, adapter_id.as_ref()], bump = state.bump)
+    )]
+    #[cfg_attr(feature = "idl-build", account(mut))]
     pub state: Account<'info, AdapterState>,
     pub authority: Signer<'info>,
 }
@@ -313,15 +338,23 @@ pub struct AdapterAdmin<'info> {
 pub struct AdapterRoute<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
-    #[account(mut, seeds = [ADAPTER_SEED, adapter_id.as_ref()], bump = state.bump)]
-    pub state: Account<'info, AdapterState>,
-    #[account(
-        init_if_needed,
-        payer = user,
-        space = Position::SPACE,
-        seeds = [POSITION_SEED, adapter_id.as_ref(), user.key().as_ref()],
-        bump
+    #[cfg_attr(
+        not(feature = "idl-build"),
+        account(mut, seeds = [ADAPTER_SEED, adapter_id.as_ref()], bump = state.bump)
     )]
+    #[cfg_attr(feature = "idl-build", account(mut))]
+    pub state: Account<'info, AdapterState>,
+    #[cfg_attr(
+        not(feature = "idl-build"),
+        account(
+            init_if_needed,
+            payer = user,
+            space = Position::SPACE,
+            seeds = [POSITION_SEED, adapter_id.as_ref(), user.key().as_ref()],
+            bump
+        )
+    )]
+    #[cfg_attr(feature = "idl-build", account(mut))]
     pub position: Account<'info, Position>,
     pub system_program: Program<'info, System>,
 }

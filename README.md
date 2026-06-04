@@ -40,6 +40,12 @@ anchor build
 anchor test
 ```
 
+If `cargo-build-sbf` wrapper detection fails on Windows, the programs can still be compiled with the Solana platform Cargo:
+
+```bash
+cargo build --release --target sbf-solana-solana --workspace
+```
+
 For mainnet-fork preparation:
 
 ```bash
@@ -48,10 +54,10 @@ MAINNET_RPC_URL=https://your-mainnet-rpc npm run fork:accounts
 
 ## Program IDs
 
-Local/devnet IDs are pre-filled so the repo is deterministic:
+Local/devnet IDs are pre-filled from generated deploy keypairs:
 
-- Dispatcher: `CP1io1rppTn7HDg8qzpGh629KG6K23ipcgtVZjWMtXmw`
-- Reference adapter: `CjGjc5uAnEuXBfRc9NKiNTxcvjxZA9snZ3V1MqKvJpoY`
+- Dispatcher: `37fdMFG3eh91i7WYk4MgwYBGqoXK4dbpV73UUh6uxvtY`
+- Reference adapter: `BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1`
 
 ## Documentation
 
@@ -60,4 +66,3 @@ Local/devnet IDs are pre-filled so the repo is deterministic:
 - [Mainnet-fork tests](docs/mainnet-fork-tests.md)
 - [Protocol adapter notes](docs/protocol-adapters.md)
 - [Submission notes](docs/submission.md)
-

@@ -5,8 +5,15 @@ members = [
 ]
 resolver = "2"
 
+[workspace.dependencies]
+anchor-lang = "=0.31.1"
+# Pin transitive crates that otherwise resolve to editions/MSRVs newer than
+# Solana 2.2.20 platform-tools Cargo 1.84 can parse.
+blake3 = "=1.6.1"
+hashbrown = "=0.16.1"
+proc-macro-crate = "=3.3.0"
+
 [profile.release]
 overflow-checks = true
 lto = "fat"
 codegen-units = 1
-
