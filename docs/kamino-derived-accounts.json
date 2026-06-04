@@ -24,10 +24,30 @@
     "switchboardTwap": "11111111111111111111111111111111",
     "scopePriceFeed": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH"
   },
-  "obligation": {
-    "strategy": "Vanilla obligation derived per adapter authority/user via klend VanillaObligation(programId) / market.getUserVanillaObligation(owner).",
-    "derivedForOwner": null
+  "cpiPrereqs": {
+    "adapterAuthority": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+    "adapterAuthoritySource": "derived(state-pda)",
+    "adapterProgramId": "BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1",
+    "adapterIdHex": "c9e801e5bc5b06d3da1565b34299aa70f7a476b8456665a02e62bcaec598c7a4",
+    "derivedStatePda": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+    "userMetadata": "DZDkuQj3j5cEHgaVGX8ReP7vUPiaTyGdabTs8bVoevuG",
+    "userMetadataInitialized": false,
+    "obligation": "BMVjGznYqketbFdniGVSjmghmUduqYvsspnqXvpz9Maa",
+    "obligationInitialized": false,
+    "obligationArgs": {
+      "tag": 0,
+      "id": 0,
+      "seed1": "11111111111111111111111111111111",
+      "seed2": "11111111111111111111111111111111"
+    },
+    "obligationStrategy": "Vanilla obligation (tag 0) owned by adapterAuthority via klend VanillaObligation(programId).toPda(market, adapterAuthority).",
+    "farmStatus": "ACTIVE",
+    "reserveCollateralFarmState": "JAvnB9AKtgPsTEoKmn24Bq64UMoYcrtWtq42HHBdsPkh",
+    "obligationFarmState": "FpvYH3vrip5Zaj5C2YPF6hGC17rPC5FLNEzt1ZPBmDzy",
+    "obligationFarmStateInitialized": false
   },
+  "cpiPrereqStatus": "READY",
+  "cpiReady": true,
   "status": "DERIVED",
   "unresolved": [],
   "reserveCount": 55,

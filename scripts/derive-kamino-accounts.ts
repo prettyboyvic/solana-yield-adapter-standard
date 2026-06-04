@@ -11,7 +11,9 @@
  * Run on a machine with mainnet RPC access:
  *   npm install
  *   KAMINO_RPC_URL=https://<mainnet-rpc> npm run kamino:derive
- *   # optional: OWNER=<adapter authority pubkey> to also derive the obligation PDA
+ *   # adapterAuthority is derived from the adapter state PDA (pooled vault owner).
+ *   # Diagnostic override only: set ADAPTER_AUTHORITY=<pubkey> AND
+ *   # ALLOW_ADAPTER_AUTHORITY_OVERRIDE=1 (marked NOT_FINAL); without the flag it fails.
  *   # optional: KAMINO_OUT=docs/kamino-derived-accounts.json to also write the JSON
  *
  * Sources: KaminoMarket.load / getReserves / getReserveByMint / getLendingMarketAuthority
@@ -22,6 +24,12 @@
 import * as fs from "node:fs";
 import * as web3 from "@solana/web3.js";
 import * as klend from "@kamino-finance/klend-sdk";
+import {
+  REFERENCE_ADAPTER_PROGRAM_ID,
+  adapterId,
+  adapterStateSeeds,
+} from "../packages/sdk/src/index.js";
+import { farmsId, getUserStatePDA } from "@hubbleprotocol/farms-sdk";
 
 const RPC = process.env.KAMINO_RPC_URL;
 const MAIN_MARKET = "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF";
@@ -89,10 +97,18 @@ function reserveDebug(r: unknown) {
   };
 }
 
-function emit(o: unknown, code = 0): never {
+// Canonical persisted account map. The FINAL emit writes here by default so the
+// exact object printed to stdout is what lands on disk, without relying on the
+// caller remembering to set KAMINO_OUT. KAMINO_OUT still overrides the path.
+const DEFAULT_OUT = "docs/kamino-derived-accounts.json";
+
+function emit(o: unknown, code = 0, persist = false): never {
   const json = JSON.stringify(o, null, 2);
   console.log(json);
-  const outPath = process.env.KAMINO_OUT;
+  // Write the SAME object that was just printed. Early BLOCKED exits only write
+  // when KAMINO_OUT is explicitly set (persist=false) so they never clobber the
+  // canonical file; the final result emits with persist=true.
+  const outPath = process.env.KAMINO_OUT ?? (persist ? DEFAULT_OUT : undefined);
   if (outPath) {
     try {
       fs.writeFileSync(outPath, json + "\n");
@@ -241,30 +257,167 @@ async function main() {
     },
   };
 
-  // Obligation PDA strategy (per-user; derived, not a single static address).
-  const owner = process.env.OWNER;
-  const obligation: Record<string, unknown> = {
-    strategy:
-      "Vanilla obligation derived per adapter authority/user via klend VanillaObligation(programId) / market.getUserVanillaObligation(owner).",
-    derivedForOwner: null,
+  // ---- CPI prerequisites: obligation / userMetadata / farm state ----
+  // The obligation + userMetadata are owned by the adapter *state* PDA (the pooled
+  // share-vault authority the reference program can invoke_signed for). Derived from
+  // the SAME seeds Rust uses: [b"adapter", adapter_id], adapter_id =
+  // sha256("solana-yield-adapter:kamino-usdc").
+  const isAddr = (v: unknown): v is string =>
+    typeof v === "string" && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v);
+
+  const KAMINO_ADAPTER_LABEL = "kamino-usdc";
+  const adapterIdBytes = adapterId(KAMINO_ADAPTER_LABEL);
+  const adapterProgramId = new web3.PublicKey(REFERENCE_ADAPTER_PROGRAM_ID);
+  const stateSeeds = adapterStateSeeds(adapterIdBytes).map((b) => Buffer.from(b));
+  const [statePda] = web3.PublicKey.findProgramAddressSync(stateSeeds, adapterProgramId);
+  const derivedAuthority = statePda.toBase58();
+
+  // Env override is a DIAGNOSTIC-ONLY path; it must opt in explicitly and is never
+  // treated as final. Using it without the opt-in flag fails loudly.
+  const overrideEnv = process.env.ADAPTER_AUTHORITY ?? null;
+  const allowOverride = process.env.ALLOW_ADAPTER_AUTHORITY_OVERRIDE === "1";
+  if (overrideEnv && !allowOverride) {
+    emit(
+      {
+        ...base,
+        status: "BLOCKED",
+        blocker:
+          "ADAPTER_AUTHORITY override set without ALLOW_ADAPTER_AUTHORITY_OVERRIDE=1. Refusing to use a non-derived authority.",
+        derivedAuthority,
+      },
+      2,
+    );
+  }
+  const adapterAuthority = overrideEnv ?? derivedAuthority;
+  const adapterAuthoritySource: "derived(state-pda)" | "env-override(NOT_FINAL)" =
+    overrideEnv ? "env-override(NOT_FINAL)" : "derived(state-pda)";
+
+  const programIdPk = new web3.PublicKey(KLEND_PROGRAM_ID);
+  const marketPk = new web3.PublicKey(MAIN_MARKET);
+  const DEFAULT_PK = web3.PublicKey.default.toBase58();
+
+  // Farm status read straight from the on-chain reserve account (no guessing).
+  const farmCollateral = pk(get(reserve, "state.farmCollateral"));
+  let farmStatus: "NONE" | "ACTIVE" | "UNKNOWN" | "BLOCKED" = "UNKNOWN";
+  let reserveCollateralFarmState: string | null = null;
+  if (farmCollateral === DEFAULT_PK) {
+    farmStatus = "NONE";
+  } else if (isAddr(farmCollateral)) {
+    farmStatus = "ACTIVE";
+    reserveCollateralFarmState = farmCollateral;
+  } else {
+    farmStatus = "UNKNOWN";
+  }
+
+  const cpi: Record<string, unknown> = {
+    adapterAuthority,
+    adapterAuthoritySource,
+    adapterProgramId: REFERENCE_ADAPTER_PROGRAM_ID,
+    adapterIdHex: Buffer.from(adapterIdBytes).toString("hex"),
+    derivedStatePda: derivedAuthority,
+    userMetadata: "BLOCKED",
+    userMetadataInitialized: null,
+    obligation: "BLOCKED",
+    obligationInitialized: null,
+    obligationArgs: null,
+    obligationStrategy:
+      "Vanilla obligation (tag 0) owned by adapterAuthority via klend VanillaObligation(programId).toPda(market, adapterAuthority).",
+    farmStatus,
+    reserveCollateralFarmState,
+    // obligationFarmUserState is derived below via the official farms-sdk helper
+    // when the reserve has an ACTIVE collateral farm; null when farm is NONE.
+    obligationFarmState: null,
+    obligationFarmStateInitialized: null,
   };
-  if (owner) {
+
+  {
     try {
+      const authPk = new web3.PublicKey(adapterAuthority);
+
+      // userMetadata PDA (official seeds helper) + on-chain init check.
+      const umHelper = (klend as Record<string, unknown>).userMetadataPda;
+      if (typeof umHelper === "function") {
+        const r = (umHelper as (...a: unknown[]) => unknown)(authPk, programIdPk);
+        cpi.userMetadata = pk(Array.isArray(r) ? r[0] : r) ?? "BLOCKED";
+      } else {
+        cpi.userMetadata = "BLOCKED: userMetadataPda not exported by installed klend-sdk";
+      }
+      try {
+        const um = await (
+          market as { getUserMetadata?: (u: web3.PublicKey) => Promise<[unknown, unknown]> }
+        ).getUserMetadata?.(authPk);
+        cpi.userMetadataInitialized = um ? um[1] !== null : null;
+      } catch {
+        /* leave null */
+      }
+
+      // Vanilla obligation PDA (official class) + init args + on-chain init check.
       const VanillaObligation = (klend as Record<string, unknown>).VanillaObligation as
-        | (new (p: web3.PublicKey) => { toPda?: (m: web3.PublicKey, o: web3.PublicKey) => unknown })
+        | (new (p: web3.PublicKey) => {
+            toPda: (m: web3.PublicKey, u: web3.PublicKey) => unknown;
+            toArgs: () => { tag: number; id: number; seed1: unknown; seed2: unknown };
+          })
         | undefined;
       if (VanillaObligation) {
-        const vo = new VanillaObligation(new web3.PublicKey(KLEND_PROGRAM_ID));
-        const pda = vo.toPda?.(new web3.PublicKey(MAIN_MARKET), new web3.PublicKey(owner));
-        obligation.derivedForOwner = pk(pda) ?? "BLOCKED";
+        const vo = new VanillaObligation(programIdPk);
+        const oblPda = vo.toPda(marketPk, authPk);
+        cpi.obligation = pk(oblPda) ?? "BLOCKED";
+        try {
+          const a = vo.toArgs();
+          cpi.obligationArgs = { tag: a.tag, id: a.id, seed1: pk(a.seed1), seed2: pk(a.seed2) };
+        } catch {
+          /* ignore */
+        }
+        try {
+          const obl = await (
+            market as { getObligationByAddress?: (pp: web3.PublicKey) => Promise<unknown> }
+          ).getObligationByAddress?.(oblPda as web3.PublicKey);
+          cpi.obligationInitialized = obl !== undefined ? obl !== null : null;
+        } catch {
+          /* leave null */
+        }
+
+        // obligationFarmUserState PDA via the OFFICIAL @hubbleprotocol/farms-sdk
+        // helper getUserStatePDA(farmsId, farmState, owner) — seeds [b"user",
+        // farmState, owner]; owner = the obligation. Same derivation klend-sdk
+        // uses internally. Created by the first-deposit flow (like the obligation).
+        if (farmStatus === "ACTIVE" && isAddr(reserveCollateralFarmState)) {
+          try {
+            const farmUserState = getUserStatePDA(
+              farmsId,
+              new web3.PublicKey(reserveCollateralFarmState),
+              oblPda as web3.PublicKey,
+            );
+            cpi.obligationFarmState = pk(farmUserState) ?? "BLOCKED";
+            try {
+              const info = await connection.getAccountInfo(farmUserState);
+              cpi.obligationFarmStateInitialized = info !== null;
+            } catch {
+              /* leave null */
+            }
+          } catch (e) {
+            cpi.obligationFarmState = `BLOCKED: farm user-state derivation failed: ${(e as Error).message}`;
+          }
+        }
       } else {
-        obligation.derivedForOwner = "BLOCKED: VanillaObligation not exported by installed klend-sdk";
+        cpi.obligation = "BLOCKED: VanillaObligation not exported by installed klend-sdk";
       }
     } catch (e) {
-      obligation.derivedForOwner = `BLOCKED: ${(e as Error).message}`;
+      cpi.blocker = `CPI prereq derivation failed: ${(e as Error).message}`;
     }
   }
-  map.obligation = obligation;
+  map.cpiPrereqs = cpi;
+
+  // CPI-ready when obligation + userMetadata PDAs resolve and the farm side is
+  // satisfied: farm NONE, or farm ACTIVE with the obligationFarmUserState PDA
+  // derived. These PDAs are created by the first-deposit flow, so a derived
+  // (not-yet-initialized) PDA still counts as ready.
+  const farmReady =
+    farmStatus === "NONE" || (farmStatus === "ACTIVE" && isAddr(cpi.obligationFarmState));
+  const cpiReady =
+    isAddr(cpi.obligation) && isAddr(cpi.userMetadata) && farmReady;
+  map.cpiPrereqStatus = cpiReady ? "READY" : "BLOCKED";
+  map.cpiReady = cpiReady;
 
   const required = [
     "usdcReserve",
@@ -281,7 +434,10 @@ async function main() {
   map.disclaimer =
     "Kamino CPI is NOT implemented and no mainnet-fork roundtrip has been run. Account derivation only.";
 
-  emit(map, unresolved.length === 0 ? 0 : 3);
+  // Exit codes: 3 = base account map incomplete; 4 = base ok but CPI prereqs not
+  // ready (loud signal); 0 = base ok and CPI prereqs READY.
+  const baseOk = unresolved.length === 0;
+  emit(map, !baseOk ? 3 : map.cpiReady ? 0 : 4, true);
 }
 
 main().catch((e) => {
