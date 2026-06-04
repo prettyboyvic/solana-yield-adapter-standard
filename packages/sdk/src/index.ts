@@ -5,7 +5,7 @@ export const DISPATCHER_PROGRAM_ID =
 export const REFERENCE_ADAPTER_PROGRAM_ID =
   "BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1";
 
-export const USDC_MINT = "EPjFWdd5AufqSSqeM2qzH6oEgCG1kduA3s3z2nZ7G8mm";
+export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 // Verified mainnet program ids / mints (stable, web-verified 2026-06-04).
 // Sources recorded in docs/submission.md.

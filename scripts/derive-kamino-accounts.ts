@@ -186,6 +186,24 @@ async function main() {
     );
   }
 
+  // Verification guard: the selected reserve's liquidity mint MUST equal the
+  // canonical USDC mint. Fail loudly rather than ever emit a DERIVED map for the
+  // wrong asset (guards against a mismatched/corrupted mint constant).
+  const selectedMint =
+    pk(call(reserve, "getLiquidityMint")) ?? pk(get(reserve, "state.liquidity.mintPubkey"));
+  if (selectedMint !== USDC_MINT) {
+    emit(
+      {
+        ...base,
+        status: "BLOCKED",
+        blocker: `Selected reserve liquidity mint ${selectedMint} != canonical USDC ${USDC_MINT}. Refusing to emit a derived map for the wrong asset.`,
+        selectedReserve: pk((reserve as { address?: unknown }).address) ?? pk(call(reserve, "getAddress")),
+        reserveCount: allReserves.length,
+      },
+      2,
+    );
+  }
+
   // Lending-market authority: prefer the SDK accessor, then the seeds helper.
   let lendingMarketAuthority = pk(call(market, "getLendingMarketAuthority")) ?? null;
   let authMethod = lendingMarketAuthority ? "market.getLendingMarketAuthority()" : "BLOCKED";

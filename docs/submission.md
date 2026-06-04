@@ -150,7 +150,7 @@ obligations, IF stake) are intentionally NOT hardcoded — they are derived on-m
 via each protocol SDK and marked `DERIVE_VIA_PROTOCOL_SDK_ON_MACHINE`.
 
 ```text
-USDC mint            EPjFWdd5AufqSSqeM2qzH6oEgCG1kduA3s3z2nZ7G8mm
+USDC mint            EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 Kamino KLend program KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD
 MarginFi v2 program  MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA
 Drift v2 program     dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH   (corrected; old notes had a wrong tail)
