@@ -2,6 +2,11 @@
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
+use anchor_lang::solana_program::{
+    hash::hash,
+    instruction::{AccountMeta, Instruction},
+    program::invoke_signed,
+};
 
 declare_id!("BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1");
 
@@ -240,6 +245,105 @@ pub mod reference_yield_adapter {
         guard_cpi_route(&ctx, adapter_id)?;
         reject_unimplemented_cpi(ctx.remaining_accounts.len())
     }
+
+    /// First-deposit init path for the Kamino USDC adapter.
+    ///
+    /// Performs the two PDA-signed klend setup CPIs — `initUserMetadata` then
+    /// `initObligation` — owned by the adapter `state` PDA (the pooled obligation
+    /// owner). This is split out from deposit/withdraw per docs/kamino-cpi-design.md;
+    /// it moves no funds and implements no deposit/withdraw/value CPI. Signer seeds
+    /// are the approved `[b"adapter", adapter_id, &[state.bump]]`. Not idempotent:
+    /// klend rejects re-init, so callers run this only on first use.
+    pub fn kamino_init(ctx: Context<KaminoInit>, adapter_id: [u8; 32]) -> Result<()> {
+        let state = &ctx.accounts.state;
+        require!(state.adapter_id == adapter_id, AdapterError::AdapterMismatch);
+        require!(!state.paused, AdapterError::Paused);
+        require!(
+            state.protocol == ProtocolKind::KaminoUsdc as u8,
+            AdapterError::InvalidProtocol
+        );
+
+        let bump = state.bump;
+        let state_key = state.key();
+        let user_key = ctx.accounts.user.key();
+        let signer_seeds: &[&[u8]] =
+            &[ADAPTER_SEED, adapter_id.as_ref(), core::slice::from_ref(&bump)];
+        let signer = &[signer_seeds];
+        let klend = ctx.accounts.klend_program.key();
+
+        // 1) initUserMetadata(userLookupTable = Pubkey::default()).
+        let mut um_data = anchor_sighash("init_user_metadata").to_vec();
+        um_data.extend_from_slice(Pubkey::default().as_ref());
+        let um_metas = vec![
+            AccountMeta::new_readonly(state_key, true), // owner (state PDA)
+            AccountMeta::new(user_key, true),           // feePayer
+            AccountMeta::new(ctx.accounts.user_metadata.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.referrer_user_metadata.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.rent.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.system_program.key(), false),
+        ];
+        require!(
+            account_layout_matches(&KAMINO_INIT_USER_METADATA_LAYOUT, &metas_to_specs(&um_metas)),
+            AdapterError::MissingCpiAccounts
+        );
+        invoke_signed(
+            &Instruction { program_id: klend, accounts: um_metas, data: um_data },
+            &[
+                ctx.accounts.state.to_account_info(),
+                ctx.accounts.user.to_account_info(),
+                ctx.accounts.user_metadata.to_account_info(),
+                ctx.accounts.referrer_user_metadata.to_account_info(),
+                ctx.accounts.rent.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+                ctx.accounts.klend_program.to_account_info(),
+            ],
+            signer,
+        )?;
+
+        // 2) initObligation(InitObligationArgs { tag: 0, id: 0 })  (Vanilla).
+        let mut ob_data = anchor_sighash("init_obligation").to_vec();
+        ob_data.push(0u8); // tag
+        ob_data.push(0u8); // id
+        let ob_metas = vec![
+            AccountMeta::new_readonly(state_key, true), // obligationOwner (state PDA)
+            AccountMeta::new(user_key, true),           // feePayer
+            AccountMeta::new(ctx.accounts.obligation.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.lending_market.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.seed1_account.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.seed2_account.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.user_metadata.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.rent.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.system_program.key(), false),
+        ];
+        require!(
+            account_layout_matches(&KAMINO_INIT_OBLIGATION_LAYOUT, &metas_to_specs(&ob_metas)),
+            AdapterError::MissingCpiAccounts
+        );
+        invoke_signed(
+            &Instruction { program_id: klend, accounts: ob_metas, data: ob_data },
+            &[
+                ctx.accounts.state.to_account_info(),
+                ctx.accounts.user.to_account_info(),
+                ctx.accounts.obligation.to_account_info(),
+                ctx.accounts.lending_market.to_account_info(),
+                ctx.accounts.seed1_account.to_account_info(),
+                ctx.accounts.seed2_account.to_account_info(),
+                ctx.accounts.user_metadata.to_account_info(),
+                ctx.accounts.rent.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+                ctx.accounts.klend_program.to_account_info(),
+            ],
+            signer,
+        )?;
+
+        emit!(KaminoInitialized {
+            adapter_id,
+            obligation_owner: state_key,
+            obligation: ctx.accounts.obligation.key(),
+            user_metadata: ctx.accounts.user_metadata.key(),
+        });
+        Ok(())
+    }
 }
 
 /// Routing decision for the real-CPI path. Intentionally has NO variant that
@@ -334,6 +438,29 @@ pub fn account_layout_matches(
 /// vault owner; CPI signer seeds are `[ADAPTER_SEED, adapter_id, &[bump]]`.
 pub fn adapter_state_pda(adapter_id: &[u8; 32], program_id: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[ADAPTER_SEED, adapter_id.as_ref()], program_id)
+}
+
+/// klend (Kamino lending) mainnet program id. The Kamino CPI target.
+pub const KAMINO_PROGRAM_ID: Pubkey =
+    anchor_lang::solana_program::pubkey!("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
+
+/// Anchor instruction discriminator = sha256("global:<method>")[..8].
+fn anchor_sighash(method: &str) -> [u8; 8] {
+    let digest = hash(format!("global:{method}").as_bytes()).to_bytes();
+    let mut out = [0u8; 8];
+    out.copy_from_slice(&digest[..8]);
+    out
+}
+
+/// Project built `AccountMeta`s onto the compact layout specs the gate checks.
+fn metas_to_specs(metas: &[AccountMeta]) -> Vec<AccountLayoutSpec> {
+    metas
+        .iter()
+        .map(|m| AccountLayoutSpec {
+            is_signer: m.is_signer,
+            is_writable: m.is_writable,
+        })
+        .collect()
 }
 
 fn assert_route(
@@ -526,6 +653,43 @@ pub struct AdapterCpiRoute<'info> {
     // remaining_accounts: protocol-specific CPI accounts (reserve/bank/pool/oracle/...).
 }
 
+/// Accounts for the first-deposit Kamino init path. The klend-side accounts are
+/// `UncheckedAccount`s validated by klend itself during the CPI; the adapter only
+/// pins the klend program id and the state-PDA seeds.
+#[derive(Accounts)]
+#[instruction(adapter_id: [u8; 32])]
+pub struct KaminoInit<'info> {
+    /// Fee payer + transaction signer.
+    #[account(mut)]
+    pub user: Signer<'info>,
+    /// Adapter state PDA = Kamino obligation/userMetadata owner; CPI signer.
+    #[cfg_attr(
+        not(feature = "idl-build"),
+        account(seeds = [ADAPTER_SEED, adapter_id.as_ref()], bump = state.bump)
+    )]
+    #[cfg_attr(feature = "idl-build", account())]
+    pub state: Account<'info, AdapterState>,
+    /// CHECK: klend program, pinned by address.
+    #[account(address = KAMINO_PROGRAM_ID)]
+    pub klend_program: UncheckedAccount<'info>,
+    /// CHECK: klend user-metadata PDA (created by initUserMetadata).
+    #[account(mut)]
+    pub user_metadata: UncheckedAccount<'info>,
+    /// CHECK: klend obligation PDA (created by initObligation).
+    #[account(mut)]
+    pub obligation: UncheckedAccount<'info>,
+    /// CHECK: klend lending market.
+    pub lending_market: UncheckedAccount<'info>,
+    /// CHECK: obligation seed1 account (Vanilla obligation).
+    pub seed1_account: UncheckedAccount<'info>,
+    /// CHECK: obligation seed2 account (Vanilla obligation).
+    pub seed2_account: UncheckedAccount<'info>,
+    /// CHECK: referrer user-metadata; optional-none placeholder = klend program id.
+    pub referrer_user_metadata: UncheckedAccount<'info>,
+    pub rent: Sysvar<'info, Rent>,
+    pub system_program: Program<'info, System>,
+}
+
 #[account]
 pub struct AdapterState {
     pub adapter_id: [u8; 32],
@@ -614,6 +778,14 @@ pub struct AdapterInitialized {
     pub authority: Pubkey,
     pub underlying_mint: Pubkey,
     pub receipt_mint: Pubkey,
+}
+
+#[event]
+pub struct KaminoInitialized {
+    pub adapter_id: [u8; 32],
+    pub obligation_owner: Pubkey,
+    pub obligation: Pubkey,
+    pub user_metadata: Pubkey,
 }
 
 #[event]
@@ -749,5 +921,14 @@ mod cpi_route_tests {
     fn state_pda_derivation_is_deterministic() {
         let id = [7u8; 32];
         assert_eq!(adapter_state_pda(&id, &crate::ID), adapter_state_pda(&id, &crate::ID));
+    }
+
+    #[test]
+    fn init_sighashes_are_sized_and_distinct() {
+        let um = anchor_sighash("init_user_metadata");
+        let ob = anchor_sighash("init_obligation");
+        assert_eq!(um.len(), 8);
+        assert_eq!(ob.len(), 8);
+        assert_ne!(um, ob);
     }
 }
