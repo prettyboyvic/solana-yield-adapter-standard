@@ -283,6 +283,59 @@ fn guard_cpi_route<'info>(
     Ok(())
 }
 
+/// Expected (is_signer, is_writable) metadata for one account slot of a Kamino
+/// klend instruction. Sourced from the klend IDL and tied to the canonical
+/// fixture (`packages/sdk/fixtures/kamino-cpi-account-plan.json`) by the unit
+/// tests below. The on-chain program intentionally stores only these compact
+/// flag specs as the routing gate's expectation; it never embeds the fixture JSON.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct AccountLayoutSpec {
+    pub is_signer: bool,
+    pub is_writable: bool,
+}
+
+const fn spec(is_signer: bool, is_writable: bool) -> AccountLayoutSpec {
+    AccountLayoutSpec { is_signer, is_writable }
+}
+
+/// klend `initUserMetadata` account layout (6 accounts).
+pub const KAMINO_INIT_USER_METADATA_LAYOUT: [AccountLayoutSpec; 6] = [
+    spec(true, false),  // owner
+    spec(true, true),   // feePayer
+    spec(false, true),  // userMetadata
+    spec(false, false), // referrerUserMetadata (optional-none)
+    spec(false, false), // rent
+    spec(false, false), // systemProgram
+];
+
+/// klend `initObligation` account layout (9 accounts).
+pub const KAMINO_INIT_OBLIGATION_LAYOUT: [AccountLayoutSpec; 9] = [
+    spec(true, false),  // obligationOwner
+    spec(true, true),   // feePayer
+    spec(false, true),  // obligation
+    spec(false, false), // lendingMarket
+    spec(false, false), // seed1Account
+    spec(false, false), // seed2Account
+    spec(false, false), // ownerUserMetadata
+    spec(false, false), // rent
+    spec(false, false), // systemProgram
+];
+
+/// Validate a provided account layout against an expected one. Returns false on a
+/// count mismatch or any per-slot signer/writable mismatch (callers fail loudly).
+pub fn account_layout_matches(
+    expected: &[AccountLayoutSpec],
+    provided: &[AccountLayoutSpec],
+) -> bool {
+    expected.len() == provided.len() && expected.iter().zip(provided).all(|(e, g)| e == g)
+}
+
+/// Derive the adapter `state` PDA + bump. This PDA is the Kamino obligation /
+/// vault owner; CPI signer seeds are `[ADAPTER_SEED, adapter_id, &[bump]]`.
+pub fn adapter_state_pda(adapter_id: &[u8; 32], program_id: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[ADAPTER_SEED, adapter_id.as_ref()], program_id)
+}
+
 fn assert_route(
     state: &AdapterState,
     position: &Position,
@@ -634,5 +687,67 @@ mod cpi_route_tests {
     fn present_accounts_route_is_not_implemented_not_simulated() {
         // Must be the not-implemented decision, never a success/simulated result.
         assert_eq!(resolve_cpi_route(3), RouteResolution::NotImplemented);
+    }
+
+    // ---- Kamino remaining-account validation gate ----
+
+    const FIXTURE_JSON: &str =
+        include_str!("../../../packages/sdk/fixtures/kamino-cpi-account-plan.json");
+
+    fn fixture_layout(section: &str) -> Vec<AccountLayoutSpec> {
+        let f: serde_json::Value =
+            serde_json::from_str(FIXTURE_JSON).expect("valid Kamino CPI account-plan fixture");
+        f.pointer(&format!("/accountPlan/plans/{section}/accounts"))
+            .and_then(serde_json::Value::as_array)
+            .unwrap_or_else(|| panic!("fixture missing plan section {section}"))
+            .iter()
+            .map(|a| AccountLayoutSpec {
+                is_signer: a["isSigner"].as_bool().unwrap_or(false),
+                is_writable: a["isWritable"].as_bool().unwrap_or(false),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn init_layouts_match_the_committed_fixture() {
+        // The on-chain flag specs must equal what the fixture/IDL define.
+        assert_eq!(
+            fixture_layout("initUserMetadata"),
+            KAMINO_INIT_USER_METADATA_LAYOUT.to_vec()
+        );
+        assert_eq!(
+            fixture_layout("initObligation"),
+            KAMINO_INIT_OBLIGATION_LAYOUT.to_vec()
+        );
+    }
+
+    #[test]
+    fn correct_layout_matches() {
+        assert!(account_layout_matches(
+            &KAMINO_INIT_USER_METADATA_LAYOUT,
+            &KAMINO_INIT_USER_METADATA_LAYOUT,
+        ));
+    }
+
+    #[test]
+    fn missing_account_layout_fails_loudly() {
+        // A short slice (missing the trailing systemProgram) must not match.
+        assert!(!account_layout_matches(
+            &KAMINO_INIT_OBLIGATION_LAYOUT,
+            &KAMINO_INIT_OBLIGATION_LAYOUT[..8],
+        ));
+    }
+
+    #[test]
+    fn wrong_signer_flag_layout_fails_loudly() {
+        let mut bad = KAMINO_INIT_USER_METADATA_LAYOUT;
+        bad[0].is_signer = false; // owner must remain a signer
+        assert!(!account_layout_matches(&KAMINO_INIT_USER_METADATA_LAYOUT, &bad));
+    }
+
+    #[test]
+    fn state_pda_derivation_is_deterministic() {
+        let id = [7u8; 32];
+        assert_eq!(adapter_state_pda(&id, &crate::ID), adapter_state_pda(&id, &crate::ID));
     }
 }
