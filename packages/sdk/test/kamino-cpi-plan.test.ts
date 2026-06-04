@@ -22,6 +22,7 @@ const BN = require("bn.js") as typeof import("bn.js");
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const derivedPath = path.resolve(__dirname, "../../../docs/kamino-derived-accounts.json");
+const fixturePath = path.resolve(__dirname, "../fixtures/kamino-cpi-account-plan.json");
 
 // Runs offline by default: consumes the committed, verified derived JSON and the
 // installed klend idl.json/generated builders. No mainnet RPC or validator.
@@ -93,6 +94,18 @@ describe("kamino derived account map", () => {
 describe("kaminoCpiAccountPlan", () => {
   const accountPlan = kaminoCpiAccountPlan({ derived });
   const idl = loadKlendIdl();
+
+  it("keeps the committed Rust-bridge fixture in sync with the helper output", () => {
+    const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+    expect(fixture).toEqual({
+      schema: "kamino-cpi-account-plan/v1",
+      source: "docs/kamino-derived-accounts.json",
+      generatedBy: "packages/sdk/src/kaminoCpiPlan.ts:kaminoCpiAccountPlan",
+      rustBridge:
+        "Use accountPlan.plans.*.accounts as canonical Kamino remaining-account plans after AdapterCpiRoute fixed accounts; this fixture does not imply live CPI is implemented.",
+      accountPlan,
+    });
+  });
 
   it("builds every expected klend CPI account plan", () => {
     expect(Object.keys(accountPlan.plans)).toEqual([...KAMINO_CPI_INSTRUCTION_NAMES]);

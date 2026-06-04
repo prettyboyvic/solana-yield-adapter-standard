@@ -15,7 +15,8 @@
     "fork:accounts": "tsx scripts/clone-mainnet-accounts.ts",
     "fork:run": "node scripts/run-mainnet-fork.mjs",
     "adapters:print": "tsx scripts/register-reference-adapters.ts",
-    "kamino:derive": "tsx scripts/derive-kamino-accounts.ts"
+    "kamino:derive": "tsx scripts/derive-kamino-accounts.ts",
+    "kamino:cpi-plan": "tsx scripts/export-kamino-cpi-plan.ts"
   },
   "devDependencies": {
     "@hubbleprotocol/farms-sdk": "^1.0.3",

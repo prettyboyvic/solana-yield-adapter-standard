@@ -1,0 +1,556 @@
+{
+  "schema": "kamino-cpi-account-plan/v1",
+  "source": "docs/kamino-derived-accounts.json",
+  "generatedBy": "packages/sdk/src/kaminoCpiPlan.ts:kaminoCpiAccountPlan",
+  "rustBridge": "Use accountPlan.plans.*.accounts as canonical Kamino remaining-account plans after AdapterCpiRoute fixed accounts; this fixture does not imply live CPI is implemented.",
+  "accountPlan": {
+    "custody": {
+      "obligationOwner": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+      "adapterUnderlyingVault": "Bw2mmBxrzTvba5q4y9kb5jUM57nu8Wv7h2EivmjkNt7R",
+      "note": "obligation owned by adapter state PDA; adapter_underlying is the state-PDA USDC vault used as klend userSourceLiquidity/userDestinationLiquidity."
+    },
+    "txShape": "NOT FINAL: this helper only builds canonical account plans; final Rust may be single nested CPI or split transaction flow.",
+    "plans": {
+      "initUserMetadata": {
+        "instruction": "initUserMetadata",
+        "argNames": [
+          "userLookupTable"
+        ],
+        "accounts": [
+          {
+            "name": "owner",
+            "pubkey": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+            "isSigner": true,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "feePayer",
+            "pubkey": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+            "isSigner": true,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "userMetadata",
+            "pubkey": "DZDkuQj3j5cEHgaVGX8ReP7vUPiaTyGdabTs8bVoevuG",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "referrerUserMetadata",
+            "pubkey": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": true,
+            "isNone": true
+          },
+          {
+            "name": "rent",
+            "pubkey": "SysvarRent111111111111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "systemProgram",
+            "pubkey": "11111111111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          }
+        ]
+      },
+      "initObligation": {
+        "instruction": "initObligation",
+        "argNames": [
+          "args"
+        ],
+        "accounts": [
+          {
+            "name": "obligationOwner",
+            "pubkey": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+            "isSigner": true,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "feePayer",
+            "pubkey": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+            "isSigner": true,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "obligation",
+            "pubkey": "BMVjGznYqketbFdniGVSjmghmUduqYvsspnqXvpz9Maa",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "lendingMarket",
+            "pubkey": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "seed1Account",
+            "pubkey": "11111111111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "seed2Account",
+            "pubkey": "11111111111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "ownerUserMetadata",
+            "pubkey": "DZDkuQj3j5cEHgaVGX8ReP7vUPiaTyGdabTs8bVoevuG",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "rent",
+            "pubkey": "SysvarRent111111111111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "systemProgram",
+            "pubkey": "11111111111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          }
+        ]
+      },
+      "refreshReserve": {
+        "instruction": "refreshReserve",
+        "argNames": [],
+        "accounts": [
+          {
+            "name": "reserve",
+            "pubkey": "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "lendingMarket",
+            "pubkey": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "pythOracle",
+            "pubkey": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": true,
+            "isNone": true
+          },
+          {
+            "name": "switchboardPriceOracle",
+            "pubkey": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": true,
+            "isNone": true
+          },
+          {
+            "name": "switchboardTwapOracle",
+            "pubkey": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": true,
+            "isNone": true
+          },
+          {
+            "name": "scopePrices",
+            "pubkey": "3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": true,
+            "isNone": false
+          }
+        ]
+      },
+      "refreshObligation": {
+        "instruction": "refreshObligation",
+        "argNames": [],
+        "accounts": [
+          {
+            "name": "lendingMarket",
+            "pubkey": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "obligation",
+            "pubkey": "BMVjGznYqketbFdniGVSjmghmUduqYvsspnqXvpz9Maa",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          }
+        ]
+      },
+      "refreshObligationFarmsForReserve": {
+        "instruction": "refreshObligationFarmsForReserve",
+        "argNames": [
+          "mode"
+        ],
+        "accounts": [
+          {
+            "name": "crank",
+            "pubkey": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+            "isSigner": true,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "obligation",
+            "pubkey": "BMVjGznYqketbFdniGVSjmghmUduqYvsspnqXvpz9Maa",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "lendingMarketAuthority",
+            "pubkey": "9DrvZvyWh1HuAoZxvYWMvkf2XCzryCpGgHqrMjyDWpmo",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserve",
+            "pubkey": "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserveFarmState",
+            "pubkey": "JAvnB9AKtgPsTEoKmn24Bq64UMoYcrtWtq42HHBdsPkh",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "obligationFarmUserState",
+            "pubkey": "FpvYH3vrip5Zaj5C2YPF6hGC17rPC5FLNEzt1ZPBmDzy",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "lendingMarket",
+            "pubkey": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "farmsProgram",
+            "pubkey": "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "rent",
+            "pubkey": "SysvarRent111111111111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "systemProgram",
+            "pubkey": "11111111111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          }
+        ]
+      },
+      "depositReserveLiquidityAndObligationCollateral": {
+        "instruction": "depositReserveLiquidityAndObligationCollateral",
+        "argNames": [
+          "liquidityAmount"
+        ],
+        "accounts": [
+          {
+            "name": "owner",
+            "pubkey": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+            "isSigner": true,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "obligation",
+            "pubkey": "BMVjGznYqketbFdniGVSjmghmUduqYvsspnqXvpz9Maa",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "lendingMarket",
+            "pubkey": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "lendingMarketAuthority",
+            "pubkey": "9DrvZvyWh1HuAoZxvYWMvkf2XCzryCpGgHqrMjyDWpmo",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserve",
+            "pubkey": "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserveLiquidityMint",
+            "pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserveLiquiditySupply",
+            "pubkey": "Bgq7trRgVMeq33yt235zM2onQ4bRDBsY5EWiTetF4qw6",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserveCollateralMint",
+            "pubkey": "B8V6WVjPxW1UGwVDfxH2d2r8SyT4cqn7dQRK6XneVa7D",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserveDestinationDepositCollateral",
+            "pubkey": "3DzjXRfxRm6iejfyyMynR4tScddaanrePJ1NJU2XnPPL",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "userSourceLiquidity",
+            "pubkey": "Bw2mmBxrzTvba5q4y9kb5jUM57nu8Wv7h2EivmjkNt7R",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "placeholderUserDestinationCollateral",
+            "pubkey": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": true,
+            "isNone": true
+          },
+          {
+            "name": "collateralTokenProgram",
+            "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "liquidityTokenProgram",
+            "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "instructionSysvarAccount",
+            "pubkey": "Sysvar1nstructions1111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          }
+        ]
+      },
+      "withdrawObligationCollateralAndRedeemReserveCollateral": {
+        "instruction": "withdrawObligationCollateralAndRedeemReserveCollateral",
+        "argNames": [
+          "collateralAmount"
+        ],
+        "accounts": [
+          {
+            "name": "owner",
+            "pubkey": "4Y8QTjo8oBfnS3362aMkyiNawJV4ZStWrcm1PLZaoa7R",
+            "isSigner": true,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "obligation",
+            "pubkey": "BMVjGznYqketbFdniGVSjmghmUduqYvsspnqXvpz9Maa",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "lendingMarket",
+            "pubkey": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "lendingMarketAuthority",
+            "pubkey": "9DrvZvyWh1HuAoZxvYWMvkf2XCzryCpGgHqrMjyDWpmo",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "withdrawReserve",
+            "pubkey": "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserveLiquidityMint",
+            "pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserveSourceCollateral",
+            "pubkey": "3DzjXRfxRm6iejfyyMynR4tScddaanrePJ1NJU2XnPPL",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserveCollateralMint",
+            "pubkey": "B8V6WVjPxW1UGwVDfxH2d2r8SyT4cqn7dQRK6XneVa7D",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "reserveLiquiditySupply",
+            "pubkey": "Bgq7trRgVMeq33yt235zM2onQ4bRDBsY5EWiTetF4qw6",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "userDestinationLiquidity",
+            "pubkey": "Bw2mmBxrzTvba5q4y9kb5jUM57nu8Wv7h2EivmjkNt7R",
+            "isSigner": false,
+            "isWritable": true,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "placeholderUserDestinationCollateral",
+            "pubkey": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": true,
+            "isNone": true
+          },
+          {
+            "name": "collateralTokenProgram",
+            "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "liquidityTokenProgram",
+            "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          },
+          {
+            "name": "instructionSysvarAccount",
+            "pubkey": "Sysvar1nstructions1111111111111111111111111",
+            "isSigner": false,
+            "isWritable": false,
+            "optional": false,
+            "isNone": false
+          }
+        ]
+      }
+    }
+  }
+}
