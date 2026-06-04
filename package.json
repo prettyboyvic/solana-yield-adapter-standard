@@ -17,11 +17,14 @@
     "adapters:print": "tsx scripts/register-reference-adapters.ts",
     "devnet:register": "tsx scripts/devnet-register-reference-adapters.ts",
     "kamino:derive": "tsx scripts/derive-kamino-accounts.ts",
-    "kamino:cpi-plan": "tsx scripts/export-kamino-cpi-plan.ts"
+    "kamino:cpi-plan": "tsx scripts/export-kamino-cpi-plan.ts",
+    "marginfi:derive": "tsx scripts/derive-marginfi-accounts.ts",
+    "marginfi:cpi-plan": "tsx scripts/export-marginfi-cpi-plan.ts"
   },
   "devDependencies": {
     "@hubbleprotocol/farms-sdk": "^1.0.3",
     "@kamino-finance/klend-sdk": "^3.2.18",
+    "@mrgnlabs/marginfi-client-v2": "^6.4.2",
     "@solana/web3.js": "^1.95.0",
     "@types/node": "^24.0.0",
     "tsx": "^4.19.4",

@@ -1,0 +1,36 @@
+{
+  "schema": "marginfi-derived-accounts/v1",
+  "source": "@mrgnlabs/marginfi-client-v2@6.4.2 production config (configs.json) + official marginfi bank-metadata cache + offline PDA derivation (@solana/web3.js)",
+  "generatedBy": "scripts/derive-marginfi-accounts.ts",
+  "program": "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
+  "group": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",
+  "groupSource": "marginfi-client-v2 configs.json, environment=production (cluster=mainnet). Not a hand-typed constant.",
+  "underlyingMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "usdcBank": "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
+  "usdcBankSelection": {
+    "selectedBy": "mint",
+    "rule": "Bank in the production group whose on-chain Bank.mint == underlyingMint. The official marginfi bank-metadata cache contains exactly one tokenSymbol=USDC entry whose tokenAddress equals the USDC mint, giving a single candidate. The derive script MUST re-verify on-chain: Bank.group == group AND Bank.mint == underlyingMint, and fail loudly if more than one production USDC bank is found.",
+    "candidates": ["2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB"]
+  },
+  "liquidityVault": "7jaiZR5Sk8hdYN9MxTpczTcwbWpb5WEoxSANuUwveuat",
+  "liquidityVaultAuthority": "3uxNepDbmkDNq6JhRja5Z8QwbTrfmkKP8AKZV5chYDGG",
+  "vaultDerivation": "PDA([\"liquidity_vault\", bank], program) and PDA([\"liquidity_vault_auth\", bank], program). Seeds confirmed in marginfi-client-v2 constants.ts (PDA_BANK_LIQUIDITY_VAULT_SEED / PDA_BANK_LIQUIDITY_VAULT_AUTH_SEED).",
+  "adapterAuthorityStatePda": "CfG2iD5YizACMXNsLbfmkwym51EM59RrP99xX5yZADvg",
+  "adapterUnderlyingVault": "2xg8GdS1KsRRCotGj3Ziy9KYX8wDqbjdERHo7YB6bN66",
+  "adapterDerivation": "adapter_id = sha256(\"solana-yield-adapter:marginfi-usdc\"); state PDA = PDA([\"adapter\", adapter_id], BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1); adapterUnderlyingVault = ATA(state, USDC) under the associated-token program.",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "systemProgram": "11111111111111111111111111111111",
+  "oracle": {
+    "key": "GENERATED_AT_RUNTIME",
+    "setup": "GENERATED_AT_RUNTIME",
+    "maxAge": "GENERATED_AT_RUNTIME",
+    "note": "Bank.config.oracle_keys[0] / oracle_setup / oracle_max_age. Requires an on-chain read of the USDC bank account; resolve with scripts/derive-marginfi-accounts.ts on a machine with RPC. Used only for lending_account_withdraw health checks."
+  },
+  "instructionDiscriminators": {
+    "marginfi_account_initialize": [43, 78, 61, 255, 148, 52, 249, 154],
+    "lending_account_deposit": [171, 94, 235, 103, 82, 64, 212, 140],
+    "lending_account_withdraw": [36, 72, 74, 19, 210, 210, 192, 192]
+  },
+  "cpiPrereqStatus": "OFFLINE_READY; oracle pending on-chain read",
+  "disclaimer": "Account map only. MarginFi CPI is NOT implemented and no mainnet-fork roundtrip has been run."
+}

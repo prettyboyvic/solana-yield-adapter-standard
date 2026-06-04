@@ -1,0 +1,241 @@
+{
+  "schema": "marginfi-cpi-account-plan/v1",
+  "source": "docs/marginfi-derived-accounts.json + @mrgnlabs/marginfi-client-v2@6.4.2 IDL (marginfi 0.1.7)",
+  "generatedBy": "scripts/export-marginfi-cpi-plan.ts",
+  "rustBridge": "Account order + isSigner/isWritable + instruction discriminators are canonical (IDL-proven). Concrete pubkeys are resolved offline; oracle/oracleSetup/oracleMaxAge and the runtime marginfiAccount/feePayer are explicitly marked generatedAtRuntime. This fixture does NOT imply MarginFi CPI is implemented.",
+  "program": "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
+  "group": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",
+  "underlyingMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "usdcBank": "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
+  "bankSelection": {
+    "selectedBy": "mint",
+    "rule": "Bank in the marginfi production group whose on-chain Bank.mint == underlyingMint (USDC). Confirmed via the official marginfi bank-metadata cache (single tokenSymbol=USDC entry whose tokenAddress == USDC mint) and MUST be re-verified on-chain (Bank.group == group AND Bank.mint == underlyingMint) by scripts/derive-marginfi-accounts.ts.",
+    "candidates": [
+      "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB"
+    ]
+  },
+  "oracle": {
+    "key": "GENERATED_AT_RUNTIME",
+    "setup": "GENERATED_AT_RUNTIME",
+    "maxAge": "GENERATED_AT_RUNTIME",
+    "note": "Bank.config.oracle_keys[0] / oracle_setup / oracle_max_age, read from the on-chain USDC bank. Required only for lending_account_withdraw health checks; current_value is oracle-independent."
+  },
+  "custody": {
+    "marginfiAccountAuthority": "CfG2iD5YizACMXNsLbfmkwym51EM59RrP99xX5yZADvg",
+    "adapterUnderlyingVault": "2xg8GdS1KsRRCotGj3Ziy9KYX8wDqbjdERHo7YB6bN66",
+    "note": "authority = adapter state PDA ([b\"adapter\", adapter_id]) for adapter_id = sha256(\"solana-yield-adapter:marginfi-usdc\"); adapterUnderlyingVault = the state-PDA USDC ATA used as signer/destination token account. marginfiAccount is a fresh runtime keypair whose authority is the state PDA."
+  },
+  "txShape": "Split-transaction shape not final. Step 2 only emits canonical account plans; no MarginFi Rust entrypoints (init/deposit/withdraw) and no current_value wiring exist yet. CPI_IMPLEMENTED remains false.",
+  "plans": {
+    "marginfi_account_initialize": {
+      "instruction": "marginfi_account_initialize",
+      "discriminator": [
+        43,
+        78,
+        61,
+        255,
+        148,
+        52,
+        249,
+        154
+      ],
+      "argNames": [],
+      "accounts": [
+        {
+          "name": "marginfi_group",
+          "pubkey": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",
+          "isSigner": false,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "marginfi_account",
+          "pubkey": "GENERATED_AT_RUNTIME",
+          "isSigner": true,
+          "isWritable": true,
+          "generatedAtRuntime": true
+        },
+        {
+          "name": "authority",
+          "pubkey": "CfG2iD5YizACMXNsLbfmkwym51EM59RrP99xX5yZADvg",
+          "isSigner": true,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "fee_payer",
+          "pubkey": "GENERATED_AT_RUNTIME",
+          "isSigner": true,
+          "isWritable": true,
+          "generatedAtRuntime": true
+        },
+        {
+          "name": "system_program",
+          "pubkey": "11111111111111111111111111111111",
+          "isSigner": false,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        }
+      ]
+    },
+    "lending_account_deposit": {
+      "instruction": "lending_account_deposit",
+      "discriminator": [
+        171,
+        94,
+        235,
+        103,
+        82,
+        64,
+        212,
+        140
+      ],
+      "argNames": [
+        "amount",
+        "deposit_up_to_limit"
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "pubkey": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",
+          "isSigner": false,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "marginfi_account",
+          "pubkey": "GENERATED_AT_RUNTIME",
+          "isSigner": false,
+          "isWritable": true,
+          "generatedAtRuntime": true
+        },
+        {
+          "name": "authority",
+          "pubkey": "CfG2iD5YizACMXNsLbfmkwym51EM59RrP99xX5yZADvg",
+          "isSigner": true,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "bank",
+          "pubkey": "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
+          "isSigner": false,
+          "isWritable": true,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "signer_token_account",
+          "pubkey": "2xg8GdS1KsRRCotGj3Ziy9KYX8wDqbjdERHo7YB6bN66",
+          "isSigner": false,
+          "isWritable": true,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "liquidity_vault",
+          "pubkey": "7jaiZR5Sk8hdYN9MxTpczTcwbWpb5WEoxSANuUwveuat",
+          "isSigner": false,
+          "isWritable": true,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "token_program",
+          "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        }
+      ]
+    },
+    "lending_account_withdraw": {
+      "instruction": "lending_account_withdraw",
+      "discriminator": [
+        36,
+        72,
+        74,
+        19,
+        210,
+        210,
+        192,
+        192
+      ],
+      "argNames": [
+        "amount",
+        "withdraw_all"
+      ],
+      "accounts": [
+        {
+          "name": "group",
+          "pubkey": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",
+          "isSigner": false,
+          "isWritable": true,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "marginfi_account",
+          "pubkey": "GENERATED_AT_RUNTIME",
+          "isSigner": false,
+          "isWritable": true,
+          "generatedAtRuntime": true
+        },
+        {
+          "name": "authority",
+          "pubkey": "CfG2iD5YizACMXNsLbfmkwym51EM59RrP99xX5yZADvg",
+          "isSigner": true,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "bank",
+          "pubkey": "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
+          "isSigner": false,
+          "isWritable": true,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "destination_token_account",
+          "pubkey": "2xg8GdS1KsRRCotGj3Ziy9KYX8wDqbjdERHo7YB6bN66",
+          "isSigner": false,
+          "isWritable": true,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "bank_liquidity_vault_authority",
+          "pubkey": "3uxNepDbmkDNq6JhRja5Z8QwbTrfmkKP8AKZV5chYDGG",
+          "isSigner": false,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "liquidity_vault",
+          "pubkey": "7jaiZR5Sk8hdYN9MxTpczTcwbWpb5WEoxSANuUwveuat",
+          "isSigner": false,
+          "isWritable": true,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "token_program",
+          "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        }
+      ],
+      "healthRemainingAccounts": [
+        {
+          "name": "bank",
+          "pubkey": "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
+          "isSigner": false,
+          "isWritable": false,
+          "generatedAtRuntime": false
+        },
+        {
+          "name": "oracle",
+          "pubkey": "GENERATED_AT_RUNTIME",
+          "isSigner": false,
+          "isWritable": false,
+          "generatedAtRuntime": true
+        }
+      ]
+    }
+  }
+}

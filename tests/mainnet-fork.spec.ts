@@ -151,3 +151,45 @@ describe("mainnet-fork readiness", () => {
     },
   );
 });
+
+const marginfiFixturePath = path.resolve(
+  __dirname,
+  "../packages/sdk/fixtures/marginfi-cpi-account-plan.json",
+);
+
+describe("marginfi mainnet-fork readiness", () => {
+  const fx = JSON.parse(fs.readFileSync(marginfiFixturePath, "utf8"));
+
+  it("exposes the three MarginFi CPI plans with 8-byte discriminators", () => {
+    for (const ix of [
+      "marginfi_account_initialize",
+      "lending_account_deposit",
+      "lending_account_withdraw",
+    ]) {
+      expect(fx.plans[ix]).toBeTruthy();
+      expect(Array.isArray(fx.plans[ix].discriminator)).toBe(true);
+      expect(fx.plans[ix].discriminator).toHaveLength(8);
+    }
+  });
+
+  it("pins concrete clone targets (group, bank) and marks oracle runtime", () => {
+    for (const key of ["group", "usdcBank"]) {
+      expect(typeof fx[key]).toBe("string");
+      expect(fx[key]).not.toBe(DERIVE);
+      expect(fx[key]).not.toBe(PENDING);
+    }
+    expect(fx.usdcBank).toBe("2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB");
+    expect(fx.underlyingMint).toBe(
+      "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    );
+    expect(fx.oracle.key).toBe("GENERATED_AT_RUNTIME");
+  });
+
+  it("withdraw plan carries health remaining accounts [bank, oracle]", () => {
+    const health = fx.plans.lending_account_withdraw.healthRemainingAccounts;
+    expect(health.map((a: { name: string }) => a.name)).toEqual([
+      "bank",
+      "oracle",
+    ]);
+  });
+});
