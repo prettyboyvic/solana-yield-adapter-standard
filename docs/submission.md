@@ -1,7 +1,7 @@
 # Submission Notes
 
 **Status: weak / not submitted — needs live verification before final claim.**
-Repo pushed and source-complete; full bounty requirements (devnet deploy + 5 mainnet-fork tests) not yet met. Deadline 2026-06-09 (~5 days). Not yet submitted on Superteam Earn (HUMAN_ONLY listing, must be submitted by the human account holder).
+Repo pushed and source-complete; full bounty requirements: devnet deploy DONE; 5 mainnet-fork (real CPI) tests not yet met. Deadline 2026-06-09 (~5 days). Not yet submitted on Superteam Earn (HUMAN_ONLY listing, must be submitted by the human account holder).
 
 Superteam Earn listing checked on 2026-06-04:
 
@@ -65,7 +65,9 @@ target/sbf-solana-solana/release/reference_yield_adapter.so
 
 ## Devnet Deploy Status
 
-Devnet deployment was prepared but not completed because the generated payer has 0 devnet SOL and CLI airdrops were rate-limited.
+(Superseded — payer was later funded and both programs are now deployed on devnet; see "Devnet deployment evidence" below. History retained.)
+
+Devnet deployment was initially prepared but not completed because the generated payer had 0 devnet SOL and CLI airdrops were rate-limited.
 
 Attempts made on 2026-06-04:
 
@@ -91,6 +93,44 @@ $sol = "C:\Users\vudat\.local\share\solana\install\releases\2.2.20\solana-releas
 ```
 
 Recommended funding target: at least 6 devnet SOL for both programs plus fees.
+
+## Devnet deployment evidence
+
+Devnet payer: `H9AgiD3PKeHEuELfifBw4PqUfnsWyt5L5ruKPin89n6d`
+
+### Deployed programs
+
+- Dispatcher program: `37fdMFG3eh91i7WYk4MgwYBGqoXK4dbpV73UUh6uxvtY`
+  - Deploy signature: `46r8w7D7N5gsLhUS1NpKux5U7fgqrdrrsZm2j8eKoqDLb7VaackCy3CXfAfTveDJ1NqMGV8jw1zX2xv3EAu6Awsg`
+  - ProgramData address: `71vFTFR1d5KJACwM198RJDceDUPp4t2xdi9afDkaWvRQ`
+  - Upgrade authority: `H9AgiD3PKeHEuELfifBw4PqUfnsWyt5L5ruKPin89n6d`
+  - Last deployed slot: `467004096`
+  - Data length: `364760 bytes`
+
+- Reference yield adapter program: `BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1`
+  - Deploy signature: `2JSC3B7tU47PJCURRNDcZ7gZ3dkyCyxitNxEd5Q1GiCwynTkZkCippch55SL79VsddgepiGyyNf3GwY6KMx2axCt`
+  - ProgramData address: `EN3xzxdLt8DVz8bAEf3rZ5dgRYGjLAytJhd8uay6ppL8`
+  - Upgrade authority: `H9AgiD3PKeHEuELfifBw4PqUfnsWyt5L5ruKPin89n6d`
+  - Last deployed slot: `467004121`
+  - Data length: `359368 bytes`
+
+Both programs were confirmed on devnet with `solana program show --url https://api.devnet.solana.com`.
+
+### Registered reference adapters printed by deploy script
+
+The deploy script printed five reference adapter records:
+
+- `kamino-usdc`
+- `marginfi-usdc`
+- `jupiter-lp`
+- `maple-syrup`
+- `drift-insurance-fund`
+
+The printed adapter program for all five records is:
+
+`BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1`
+
+Note: devnet deployment is complete. CPI/live mainnet-fork roundtrip validation is still not claimed as complete.
 
 ## Known Toolchain Issue
 
@@ -162,7 +202,7 @@ Do not claim the full bounty requirements are complete yet.
 
 Still required before a final bounty-grade submission (all on the Windows machine):
 
-1. Fund the devnet payer and run `scripts/devnet-deploy.ps1` (deploy both programs).
+1. Devnet deploy DONE — both programs deployed and confirmed on devnet (see "Devnet deployment evidence").
 2. Initialize the registry and register the five reference adapter configs on devnet.
 3. Maple addresses are resolved (mint/router/pool/oracle wired). The Maple integration
    path is a Chainlink CCIP / token route, not a lending CPI — the live flow is still TODO.
