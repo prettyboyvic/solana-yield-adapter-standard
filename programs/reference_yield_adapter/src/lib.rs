@@ -1230,6 +1230,171 @@ fn kamino_current_value<'info>(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// MarginFi (mrgn-v2) on-chain account decoding.
+//
+// Byte offsets are proven against `@mrgnlabs/marginfi-client-v2@6.4.2`
+// (bundled IDL `marginfi 0.1.7`, program MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA).
+// No marginfi Rust crate is pulled in; we read only the fixed-offset scalar
+// fields needed for `current_value`. `WrappedI80F48` is a little-endian i128
+// with 48 fractional bits; deposit-only accounting requires non-negative values.
+//
+// These helpers are pure and unit-tested against synthetic bytes (step 1: read
+// path only — no marginfi entrypoints / CPI yet).
+const MARGINFI_BANK_DISCRIMINATOR: [u8; 8] = [142, 49, 166, 242, 50, 66, 97, 188];
+const MARGINFI_ACCOUNT_DISCRIMINATOR: [u8; 8] = [67, 178, 130, 109, 126, 114, 28, 42];
+
+// Bank field offsets (account data, incl. the 8-byte anchor discriminator).
+const BANK_MINT_OFF: usize = 8; // pubkey -> 8..40
+const BANK_ASSET_SHARE_VALUE_OFF: usize = 80; // WrappedI80F48 -> 80..96 (i128 LE, 48 frac bits)
+const MARGINFI_BANK_MIN_LEN: usize = 96;
+
+// MarginfiAccount field offsets. (group is at 8..40; not read here.)
+const MFA_AUTHORITY_OFF: usize = 40; // pubkey -> 40..72
+const MFA_BALANCES_OFF: usize = 72;
+const MFA_BALANCE_COUNT: usize = 16;
+const MFA_BALANCE_SIZE: usize = 104;
+const BAL_ACTIVE_OFF: usize = 0; // u8 within slot
+const BAL_BANK_PK_OFF: usize = 1; // pubkey within slot -> +1..+33
+const BAL_ASSET_SHARES_OFF: usize = 40; // WrappedI80F48 within slot -> +40..+56
+const MARGINFI_ACCOUNT_MIN_LEN: usize =
+    MFA_BALANCES_OFF + MFA_BALANCE_COUNT * MFA_BALANCE_SIZE; // 72 + 16*104 = 1736
+
+fn read_i128_le(data: &[u8], offset: usize) -> Result<i128> {
+    let end = offset
+        .checked_add(16)
+        .ok_or(AdapterError::MarginfiAccountDataTooShort)?;
+    let bytes = data
+        .get(offset..end)
+        .ok_or(AdapterError::MarginfiAccountDataTooShort)?;
+    let array: [u8; 16] = bytes
+        .try_into()
+        .map_err(|_| AdapterError::MarginfiAccountDataTooShort)?;
+    Ok(i128::from_le_bytes(array))
+}
+
+/// Read a `WrappedI80F48` raw value (the i128 numerator, still scaled by 2^48)
+/// and require it be non-negative — deposit-only accounting never reads a
+/// negative share count or share value.
+fn read_marginfi_i80f48_nonneg(data: &[u8], offset: usize) -> Result<u128> {
+    let raw = read_i128_le(data, offset)?;
+    require!(raw >= 0, AdapterError::MarginfiNegativeValue);
+    Ok(raw as u128)
+}
+
+/// Decode a MarginFi `Bank` and return the raw `asset_share_value` I80F48
+/// numerator (scaled by 2^48). Verifies the account discriminator and that the
+/// bank's `mint` equals `expected_mint`.
+pub fn read_marginfi_bank_asset_share_value(data: &[u8], expected_mint: Pubkey) -> Result<u128> {
+    require!(
+        data.len() >= MARGINFI_BANK_MIN_LEN,
+        AdapterError::MarginfiAccountDataTooShort
+    );
+    require!(
+        data[..8] == MARGINFI_BANK_DISCRIMINATOR,
+        AdapterError::MarginfiBadDiscriminator
+    );
+    let mint = data
+        .get(BANK_MINT_OFF..BANK_MINT_OFF + 32)
+        .ok_or(AdapterError::MarginfiAccountDataTooShort)?;
+    require!(
+        mint == expected_mint.as_ref(),
+        AdapterError::MarginfiBankMintMismatch
+    );
+    read_marginfi_i80f48_nonneg(data, BANK_ASSET_SHARE_VALUE_OFF)
+}
+
+/// Scan a MarginFi `MarginfiAccount` for the active balance backed by `usdc_bank`
+/// and return its raw `asset_shares` I80F48 numerator (scaled by 2^48). Verifies
+/// the account discriminator and that `authority` equals `expected_authority`
+/// (the adapter state PDA). Errors if no active balance matches the bank.
+pub fn read_marginfi_account_asset_shares(
+    data: &[u8],
+    expected_authority: Pubkey,
+    usdc_bank: Pubkey,
+) -> Result<u128> {
+    require!(
+        data.len() >= MARGINFI_ACCOUNT_MIN_LEN,
+        AdapterError::MarginfiAccountDataTooShort
+    );
+    require!(
+        data[..8] == MARGINFI_ACCOUNT_DISCRIMINATOR,
+        AdapterError::MarginfiBadDiscriminator
+    );
+    let authority = data
+        .get(MFA_AUTHORITY_OFF..MFA_AUTHORITY_OFF + 32)
+        .ok_or(AdapterError::MarginfiAccountDataTooShort)?;
+    require!(
+        authority == expected_authority.as_ref(),
+        AdapterError::MarginfiAuthorityMismatch
+    );
+
+    let bank_ref = usdc_bank.as_ref();
+    for i in 0..MFA_BALANCE_COUNT {
+        let slot = MFA_BALANCES_OFF + i * MFA_BALANCE_SIZE;
+        let active = *data
+            .get(slot + BAL_ACTIVE_OFF)
+            .ok_or(AdapterError::MarginfiAccountDataTooShort)?;
+        if active != 1 {
+            continue;
+        }
+        let pk_off = slot + BAL_BANK_PK_OFF;
+        let bank_pk = data
+            .get(pk_off..pk_off + 32)
+            .ok_or(AdapterError::MarginfiAccountDataTooShort)?;
+        if bank_pk == bank_ref {
+            return read_marginfi_i80f48_nonneg(data, slot + BAL_ASSET_SHARES_OFF);
+        }
+    }
+    err!(AdapterError::MarginfiNoActiveUsdcBalance)
+}
+
+/// Full 128x128 -> 256-bit product as four little-endian u64 limbs (no deps).
+fn mul_256(a: u128, b: u128) -> [u64; 4] {
+    const LO64: u128 = u64::MAX as u128;
+    let a0 = a & LO64;
+    let a1 = a >> 64;
+    let b0 = b & LO64;
+    let b1 = b >> 64;
+    let p00 = a0 * b0;
+    let p01 = a0 * b1;
+    let p10 = a1 * b0;
+    let p11 = a1 * b1;
+
+    let mut acc = p00;
+    let r0 = (acc & LO64) as u64;
+    acc >>= 64;
+    acc += (p01 & LO64) + (p10 & LO64);
+    let r1 = (acc & LO64) as u64;
+    acc >>= 64;
+    acc += (p01 >> 64) + (p10 >> 64) + (p11 & LO64);
+    let r2 = (acc & LO64) as u64;
+    acc >>= 64;
+    acc += p11 >> 64;
+    let r3 = (acc & LO64) as u64;
+    [r0, r1, r2, r3]
+}
+
+/// Convert MarginFi shares to underlying assets (USDC lamports):
+/// `assets = (asset_shares_raw * asset_share_value_raw) >> 96`, rounded down.
+/// Both inputs are I80F48 numerators (each scaled by 2^48), so the product is
+/// scaled by 2^96. Uses a 256-bit intermediate to avoid u128 overflow and fails
+/// loudly if the result does not fit in u64.
+pub fn marginfi_shares_to_assets(
+    asset_shares_raw: u128,
+    asset_share_value_raw: u128,
+) -> Result<u64> {
+    if asset_shares_raw == 0 {
+        return Ok(0);
+    }
+    let [_r0, r1, r2, r3] = mul_256(asset_shares_raw, asset_share_value_raw);
+    // result = product >> 96 must fit in u64, i.e. product < 2^160:
+    require!(r3 == 0, AdapterError::MathOverflow);
+    require!(r2 >> 32 == 0, AdapterError::MathOverflow);
+    let assets = ((r1 as u128) >> 32) + ((r2 as u128) << 32);
+    u64::try_from(assets).map_err(|_| AdapterError::MathOverflow.into())
+}
+
 /// Anchor instruction discriminator = sha256("global:<method>")[..8].
 fn anchor_sighash(method: &str) -> [u8; 8] {
     let digest = hash(format!("global:{method}").as_bytes()).to_bytes();
@@ -1685,6 +1850,18 @@ pub enum AdapterError {
     KaminoZeroTotalSupply,
     #[msg("Kamino reserve fee reduction underflowed total liquidity supply")]
     KaminoTotalSupplyUnderflow,
+    #[msg("MarginFi account data is shorter than the expected layout")]
+    MarginfiAccountDataTooShort,
+    #[msg("MarginFi account discriminator does not match the expected account")]
+    MarginfiBadDiscriminator,
+    #[msg("MarginFi I80F48 value is negative; deposit-only accounting expects non-negative")]
+    MarginfiNegativeValue,
+    #[msg("MarginFi bank mint does not match the expected underlying mint")]
+    MarginfiBankMintMismatch,
+    #[msg("MarginFi account authority does not match the adapter state PDA")]
+    MarginfiAuthorityMismatch,
+    #[msg("MarginFi account has no active balance for the expected USDC bank")]
+    MarginfiNoActiveUsdcBalance,
 }
 
 #[cfg(test)]
@@ -2029,5 +2206,194 @@ mod kamino_decode_tests {
         assert!(kamino_collateral_to_assets(u64::MAX, u128::MAX, 1).is_err());
         // result exceeding u64 fails on the downcast
         assert!(kamino_collateral_to_assets(u64::MAX, u64::MAX as u128, 1).is_err());
+    }
+}
+
+#[cfg(test)]
+mod marginfi_decode_tests {
+    use super::*;
+
+    const ONE: u128 = 1u128 << 48; // I80F48 representation of 1.0
+
+    fn err_msg(e: anchor_lang::error::Error) -> String {
+        match e {
+            anchor_lang::error::Error::AnchorError(ae) => ae.error_msg,
+            _ => String::new(),
+        }
+    }
+    fn put_pubkey(buf: &mut [u8], off: usize, k: &Pubkey) {
+        buf[off..off + 32].copy_from_slice(k.as_ref());
+    }
+    fn put_i128(buf: &mut [u8], off: usize, v: i128) {
+        buf[off..off + 16].copy_from_slice(&v.to_le_bytes());
+    }
+
+    fn build_bank(mint: &Pubkey, asset_share_value_raw: i128) -> Vec<u8> {
+        let mut data = vec![0u8; MARGINFI_BANK_MIN_LEN];
+        data[..8].copy_from_slice(&MARGINFI_BANK_DISCRIMINATOR);
+        put_pubkey(&mut data, BANK_MINT_OFF, mint);
+        put_i128(&mut data, BANK_ASSET_SHARE_VALUE_OFF, asset_share_value_raw);
+        data
+    }
+
+    fn build_account(authority: &Pubkey, slots: &[(u8, Pubkey, i128)]) -> Vec<u8> {
+        let mut data = vec![0u8; MARGINFI_ACCOUNT_MIN_LEN];
+        data[..8].copy_from_slice(&MARGINFI_ACCOUNT_DISCRIMINATOR);
+        put_pubkey(&mut data, MFA_AUTHORITY_OFF, authority);
+        for (i, (active, bank_pk, shares_raw)) in slots.iter().enumerate() {
+            let slot = MFA_BALANCES_OFF + i * MFA_BALANCE_SIZE;
+            data[slot + BAL_ACTIVE_OFF] = *active;
+            put_pubkey(&mut data, slot + BAL_BANK_PK_OFF, bank_pk);
+            put_i128(&mut data, slot + BAL_ASSET_SHARES_OFF, *shares_raw);
+        }
+        data
+    }
+
+    #[test]
+    fn bank_decoder_reads_asset_share_value() {
+        let mint = Pubkey::new_unique();
+        let data = build_bank(&mint, ONE as i128);
+        assert_eq!(
+            read_marginfi_bank_asset_share_value(&data, mint).unwrap(),
+            ONE
+        );
+    }
+
+    #[test]
+    fn bank_decoder_rejects_bad_discriminator() {
+        let mint = Pubkey::new_unique();
+        let mut data = build_bank(&mint, ONE as i128);
+        data[0] ^= 0xFF;
+        assert!(err_msg(read_marginfi_bank_asset_share_value(&data, mint).unwrap_err())
+            .contains("discriminator"));
+    }
+
+    #[test]
+    fn bank_decoder_rejects_short_data_and_mint_mismatch() {
+        let mint = Pubkey::new_unique();
+        let data = build_bank(&mint, ONE as i128);
+        let short = &data[..MARGINFI_BANK_MIN_LEN - 1];
+        assert!(err_msg(read_marginfi_bank_asset_share_value(short, mint).unwrap_err())
+            .contains("shorter"));
+        let other = Pubkey::new_unique();
+        assert!(err_msg(read_marginfi_bank_asset_share_value(&data, other).unwrap_err())
+            .contains("mint"));
+    }
+
+    #[test]
+    fn bank_decoder_rejects_negative_i80f48() {
+        let mint = Pubkey::new_unique();
+        let data = build_bank(&mint, -1i128);
+        assert!(err_msg(read_marginfi_bank_asset_share_value(&data, mint).unwrap_err())
+            .contains("negative"));
+    }
+
+    #[test]
+    fn account_decoder_rejects_bad_discriminator() {
+        let auth = Pubkey::new_unique();
+        let bank = Pubkey::new_unique();
+        let mut data = build_account(&auth, &[(1, bank, (1000u128 * ONE) as i128)]);
+        data[1] ^= 0xFF;
+        assert!(err_msg(read_marginfi_account_asset_shares(&data, auth, bank).unwrap_err())
+            .contains("discriminator"));
+    }
+
+    #[test]
+    fn account_decoder_rejects_authority_mismatch() {
+        let auth = Pubkey::new_unique();
+        let bank = Pubkey::new_unique();
+        let data = build_account(&auth, &[(1, bank, (5u128 * ONE) as i128)]);
+        let wrong = Pubkey::new_unique();
+        assert!(err_msg(read_marginfi_account_asset_shares(&data, wrong, bank).unwrap_err())
+            .contains("authority"));
+    }
+
+    #[test]
+    fn account_decoder_finds_active_balance_and_skips_inactive() {
+        let auth = Pubkey::new_unique();
+        let usdc_bank = Pubkey::new_unique();
+        // slot 0: inactive entry for the SAME bank (must be skipped);
+        // slot 2: the real active balance.
+        let data = build_account(
+            &auth,
+            &[
+                (0, usdc_bank, (999u128 * ONE) as i128),
+                (1, Pubkey::new_unique(), (7u128 * ONE) as i128),
+                (1, usdc_bank, (555u128 * ONE) as i128),
+            ],
+        );
+        let shares = read_marginfi_account_asset_shares(&data, auth, usdc_bank).unwrap();
+        assert_eq!(shares, 555u128 * ONE);
+    }
+
+    #[test]
+    fn account_decoder_no_active_usdc_balance_errors() {
+        let auth = Pubkey::new_unique();
+        let usdc_bank = Pubkey::new_unique();
+        // usdc bank present but inactive; a different bank is active.
+        let data = build_account(
+            &auth,
+            &[
+                (0, usdc_bank, (10u128 * ONE) as i128),
+                (1, Pubkey::new_unique(), (10u128 * ONE) as i128),
+            ],
+        );
+        assert!(err_msg(
+            read_marginfi_account_asset_shares(&data, auth, usdc_bank).unwrap_err()
+        )
+        .contains("no active"));
+    }
+
+    #[test]
+    fn account_decoder_rejects_negative_shares() {
+        let auth = Pubkey::new_unique();
+        let bank = Pubkey::new_unique();
+        let data = build_account(&auth, &[(1, bank, -5i128)]);
+        assert!(err_msg(read_marginfi_account_asset_shares(&data, auth, bank).unwrap_err())
+            .contains("negative"));
+    }
+
+    #[test]
+    fn shares_to_assets_basic_and_zero() {
+        // 1000 shares * 1.0 share value = 1000
+        assert_eq!(marginfi_shares_to_assets(1000u128 * ONE, ONE).unwrap(), 1000);
+        // zero shares -> zero assets (not an error)
+        assert_eq!(marginfi_shares_to_assets(0, ONE).unwrap(), 0);
+    }
+
+    #[test]
+    fn shares_to_assets_rounds_down() {
+        // 7 shares * 1.5 share value = 10.5 -> 10
+        let value_1_5 = ONE + (ONE / 2);
+        assert_eq!(marginfi_shares_to_assets(7u128 * ONE, value_1_5).unwrap(), 10);
+    }
+
+    #[test]
+    fn shares_to_assets_large_values_no_u128_overflow() {
+        // 1e15 lamports of shares at 1.0 -> 1e15. The raw product is ~2^146,
+        // which a naive u128 multiply cannot hold; the 256-bit path must.
+        let big = 1_000_000_000_000_000u128;
+        let shares_raw = big << 48;
+        let value_raw = ONE;
+        assert!(shares_raw.checked_mul(value_raw).is_none()); // proves naive u128 would overflow
+        assert_eq!(u128::from(marginfi_shares_to_assets(shares_raw, value_raw).unwrap()), big);
+    }
+
+    #[test]
+    fn shares_to_assets_result_exceeding_u64_errors() {
+        // product = 2^160 -> result 2^64 which does not fit u64.
+        assert!(marginfi_shares_to_assets(1u128 << 100, 1u128 << 60).is_err());
+    }
+
+    #[test]
+    fn decode_pipeline_bank_and_account_to_assets() {
+        let auth = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let usdc_bank = Pubkey::new_unique();
+        let bank = build_bank(&mint, ONE as i128); // share value 1.0
+        let acct = build_account(&auth, &[(1, usdc_bank, (1234u128 * ONE) as i128)]);
+        let value_raw = read_marginfi_bank_asset_share_value(&bank, mint).unwrap();
+        let shares_raw = read_marginfi_account_asset_shares(&acct, auth, usdc_bank).unwrap();
+        assert_eq!(marginfi_shares_to_assets(shares_raw, value_raw).unwrap(), 1234);
     }
 }
