@@ -116,21 +116,45 @@ Devnet payer: `H9AgiD3PKeHEuELfifBw4PqUfnsWyt5L5ruKPin89n6d`
 
 Both programs were confirmed on devnet with `solana program show --url https://api.devnet.solana.com`.
 
-### Registered reference adapters printed by deploy script
+### Devnet registry initialization and adapter registration evidence
 
-The deploy script printed five reference adapter records:
+Verified on 2026-06-04 with `npm run devnet:register`.
 
-- `kamino-usdc`
-- `marginfi-usdc`
-- `jupiter-lp`
-- `maple-syrup`
-- `drift-insurance-fund`
+Registry PDA: `AwzSLAgzqc7cS1aAJdKdLFQGCbjWExPvFpoeboRhcsvA`
 
-The printed adapter program for all five records is:
+Registry fields decoded from devnet:
 
-`BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1`
+- Governance: `H9AgiD3PKeHEuELfifBw4PqUfnsWyt5L5ruKPin89n6d`
+- Version: `1`
+- Adapter count / max: `5 / 5`
+- Metadata URI: `ipfs://solana-yield-adapters/registry.json`
+- All five records active, with adapter program
+  `BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1`
 
-Note: devnet deployment is complete. CPI/live mainnet-fork roundtrip validation is still not claimed as complete.
+Transaction signatures:
+
+- `initialize_registry`: `XRWcwmrvW9VKs5WY5yLjjpgZZaB9cYBbRpttmWYjtNTaPfvUjLKLe9Pwy4bG1Hns2QDREG1LNecThfeDPGDp3DM`
+- `register_adapter:kamino-usdc`: `kG6o7rUSP6gHbMe5FRu8HsPu2zWc5noggjHc3wGzyALBkX5HNrACkqvCYSsngy98VzcCtESC41sTC2EmF8ee259`
+- `register_adapter:marginfi-usdc`: `JfkT1W9SUFRm1Fhqza3Tggxh4PnjQiAmbi4N6WYVVyDbzGy9wccpVgdPvoGGX15LmfQUwa2oph1EqKroZUZmGAX`
+- `register_adapter:jupiter-lp`: `462rKgK2BgcWz43DpHG26jDuep4Uv4X3hta4Asa8ecbLwzLNQjUGaYFhBR91iQ9KCwYSKzHutV2q2p4cauPMUkdX`
+- `register_adapter:maple-syrup`: `43PDs6iFKrGN22J9Ja7DKY35PoLKP252byJLkCH3fjCXPrTr9j3W5EjpxkqDc5qDSMssswbQZS9Lh4ukYa9rBqbs`
+- `register_adapter:drift-insurance-fund`: `34sb9ed7nj7cBz8bU7FEFtam5cpg7eMg3fEc1rRqrmkoAvRYJuZUMANax7crCTqUqvsrdNoEUPbcAqtw6eD1Sqcs`
+
+Registered adapter records:
+
+| Adapter | Protocol | Underlying mint | Receipt mint | Capabilities | Risk tier |
+|---|---:|---|---|---:|---:|
+| `kamino-usdc` | 1 | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` | `11111111111111111111111111111111` | 7 | 2 |
+| `marginfi-usdc` | 2 | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` | `11111111111111111111111111111111` | 7 | 2 |
+| `jupiter-lp` | 3 | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` | `27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4` | 7 | 3 |
+| `maple-syrup` | 4 | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` | `AvZZF1YaZDziPY2RCK4oJrRVrbN3mTD9NL24hPeaZeUj` | 7 | 3 |
+| `drift-insurance-fund` | 5 | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` | `11111111111111111111111111111111` | 7 | 4 |
+
+The default pubkey receipt mint records are intentional placeholders for adapters
+whose receipt/account state is derived on-machine rather than a static SPL mint.
+
+Note: devnet deployment and registry registration are complete. CPI/live
+mainnet-fork roundtrip validation is still not claimed as complete.
 
 ## Known Toolchain Issue
 
@@ -191,12 +215,12 @@ Runnable now (this commit):
 - Fork-readiness suite green; SDK ABI green.
 - Devnet deployment is DONE; the earlier payer/faucet blocker is historical only
   and superseded by the deployment evidence above.
+- Devnet registry initialization and the five reference adapter registrations are
+  DONE; evidence is recorded above.
 - Turnkey scripts remain available: `scripts/devnet-deploy.ps1`,
-  `scripts/run-mainnet-fork.mjs`.
+  `scripts/devnet-register-reference-adapters.ts`, `scripts/run-mainnet-fork.mjs`.
 
 Still open:
-- Initialize the registry and register the five reference adapter configs on
-  devnet, unless/until verified on-chain.
 - Run the live mainnet-fork roundtrip with real per-protocol CPI.
 - Finish Kamino `kamino_deposit`, `kamino_withdraw`, and real `current_value`.
 - Finish MarginFi / Jupiter / Maple / Drift real CPI paths.
@@ -304,7 +328,7 @@ Do not claim the full bounty requirements are complete yet.
 Still required before a final bounty-grade submission (all on the Windows machine):
 
 1. Devnet deploy DONE — both programs deployed and confirmed on devnet (see "Devnet deployment evidence").
-2. Initialize the registry and register the five reference adapter configs on devnet.
+2. Devnet registry DONE — registry initialized and all five reference adapter configs registered.
 3. Maple addresses are resolved (mint/router/pool/oracle wired). The Maple integration
    path is a Chainlink CCIP / token route, not a lending CPI — the live flow is still TODO.
 4. Finish and compile real protocol integration for Kamino, MarginFi, Jupiter LP,
