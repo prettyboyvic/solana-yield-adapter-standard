@@ -252,6 +252,29 @@ sequences in the Kamino branch of `reference_yield_adapter`, then run
 Kamino CPI: BLOCKED (not passing). MarginFi / Jupiter / Maple / Drift: still open.
 This is NOT a claim that all five adapters pass, and NOT full bounty completion.
 
+### Kamino account derivation step (prepared 2026-06-04)
+
+Added `scripts/derive-kamino-accounts.ts` (`npm run kamino:derive`) that uses the
+official `@kamino-finance/klend-sdk` to load the Main Market
+(`7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF`) and print the exact USDC account
+map (reserve, liquidity supply vault, collateral mint, destination deposit collateral,
+lending-market authority PDA, oracle accounts, obligation PDA strategy, token/ATA/
+system/sysvar programs). Anything not verifiable on-chain is emitted as explicit
+`null`/`BLOCKED` — no addresses are guessed.
+
+Not run in the build environment (no mainnet RPC + packages not installed there).
+Run locally on Windows:
+
+```powershell
+npm install
+$env:KAMINO_RPC_URL="https://<your-mainnet-rpc>"
+npm run kamino:derive
+# optional: $env:OWNER="<adapter authority pubkey>"  # also derives obligation PDA
+```
+
+Kamino CPI is still NOT implemented, no mainnet-fork roundtrip has been run, and the
+full bounty remains NOT claimable.
+
 ## Not Yet Claimable
 
 Do not claim the full bounty requirements are complete yet.

@@ -14,9 +14,12 @@
     "anchor:test": "anchor test",
     "fork:accounts": "tsx scripts/clone-mainnet-accounts.ts",
     "fork:run": "node scripts/run-mainnet-fork.mjs",
-    "adapters:print": "tsx scripts/register-reference-adapters.ts"
+    "adapters:print": "tsx scripts/register-reference-adapters.ts",
+    "kamino:derive": "tsx scripts/derive-kamino-accounts.ts"
   },
   "devDependencies": {
+    "@kamino-finance/klend-sdk": "^3.2.18",
+    "@solana/web3.js": "^1.95.0",
     "@types/node": "^24.0.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
