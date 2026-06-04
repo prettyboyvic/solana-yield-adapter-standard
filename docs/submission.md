@@ -175,7 +175,7 @@ Maple syrupUSDC + CCIP router/pool/oracle (official Maple docs, maple.finance).
 ```text
 npm run build      : pass (tsc)
 npm run typecheck  : pass (tsc --noEmit)
-npx vitest run     : 11 passed, 7 skipped (SDK ABI + mainnet-fork readiness)
+npx vitest run     : 15 passed, 7 skipped (SDK ABI + CPI-route separation + fork readiness)
 fork:accounts      : prints a complete solana-test-validator --clone command (5 static accounts)
 fork:run           : preflight + ordered on-machine instructions
 ```
@@ -195,6 +195,32 @@ Cannot be done from this environment (no Solana toolchain, no devnet/mainnet net
 no validator) — must run on the Windows machine with Agave/Anchor 2.2.20:
 - Devnet deploy (payer still needs >= 6 devnet SOL; faucet was rate-limited).
 - Live mainnet-fork roundtrip with real per-protocol CPI.
+
+## Adapter interface prepared for real CPI (2026-06-04)
+
+The reference adapter now exposes the plumbing required for real protocol CPI,
+WITHOUT implementing any protocol integration yet:
+
+- Added `anchor-spl` (token feature) and a new `AdapterCpiRoute` account context
+  carrying the user underlying token account, an adapter-side vault/receipt token
+  account, `token_program`, and `remaining_accounts` for protocol-specific accounts.
+- Added separate `deposit_cpi` / `withdraw_cpi` / `current_value_cpi` instructions.
+  Their bodies fail LOUDLY (`MissingCpiAccounts` if protocol accounts are absent,
+  otherwise `CpiNotImplemented`). They never fall back to simulated yield.
+- The existing `deposit` / `withdraw` / `current_value` instructions are unchanged
+  and now explicitly labelled SIMULATED REFERENCE ONLY (virtual-yield accounting,
+  not bounty-grade CPI).
+- Rust unit tests (`cpi_route_tests`) assert the routing decision is loud and has
+  no success/simulated branch. SDK tests assert the CPI route has distinct
+  discriminators from the simulated route and that `CPI_IMPLEMENTED === false`.
+
+Note: the Rust changes (anchor-spl dep + new context/instructions) were NOT compiled
+in this environment (no Rust toolchain). `cargo check --quiet` and `cargo test` must be
+run on the Windows machine to confirm; anchor-spl transitive crates may need version
+pins consistent with the existing Solana 2.2.20 platform-tools pins.
+
+No protocol CPI (Kamino / MarginFi / Jupiter / Maple / Drift) is implemented.
+This is interface scaffolding only and is still NOT a full live-CPI bounty submission.
 
 ## Not Yet Claimable
 

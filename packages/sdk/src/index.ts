@@ -50,6 +50,30 @@ export enum ProtocolKind {
 
 export type AdapterInstructionName = "deposit" | "withdraw" | "current_value";
 
+// SIMULATED reference instructions (virtual-yield accounting, not bounty-grade CPI).
+export const SIMULATED_INSTRUCTIONS: readonly AdapterInstructionName[] = [
+  "deposit",
+  "withdraw",
+  "current_value",
+];
+
+// Real-CPI route instruction names. These are a SEPARATE route from the simulated
+// ones; the on-chain bodies currently fail loudly (not implemented), so live CPI
+// must NOT be claimed as working yet.
+export type AdapterCpiInstructionName =
+  | "deposit_cpi"
+  | "withdraw_cpi"
+  | "current_value_cpi";
+
+export const CPI_INSTRUCTIONS: readonly AdapterCpiInstructionName[] = [
+  "deposit_cpi",
+  "withdraw_cpi",
+  "current_value_cpi",
+];
+
+/** No protocol CPI is implemented yet. Guards against claiming live CPI success. */
+export const CPI_IMPLEMENTED = false as const;
+
 export interface AdapterMainnetWiring {
   /** On-chain program the adapter performs CPI into. */
   programId: string;
@@ -195,7 +219,9 @@ export function adapterId(label: string): Uint8Array {
   return createHash("sha256").update(`solana-yield-adapter:${label}`).digest();
 }
 
-export function anchorDiscriminator(name: AdapterInstructionName): Uint8Array {
+export function anchorDiscriminator(
+  name: AdapterInstructionName | AdapterCpiInstructionName,
+): Uint8Array {
   return createHash("sha256").update(`global:${name}`).digest().subarray(0, 8);
 }
 

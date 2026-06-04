@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   REFERENCE_ADAPTERS,
+  SIMULATED_INSTRUCTIONS,
+  CPI_INSTRUCTIONS,
+  CPI_IMPLEMENTED,
   adapterId,
   anchorDiscriminator,
   bytesToHex,
@@ -51,3 +54,35 @@ describe("adapter ABI", () => {
   });
 });
 
+
+describe("real-CPI route is separate from simulated route", () => {
+  it("does not claim live CPI is implemented", () => {
+    expect(CPI_IMPLEMENTED).toBe(false);
+  });
+
+  it("defines three distinct CPI instruction names", () => {
+    expect(CPI_INSTRUCTIONS).toEqual([
+      "deposit_cpi",
+      "withdraw_cpi",
+      "current_value_cpi",
+    ]);
+    expect(new Set(CPI_INSTRUCTIONS).size).toBe(3);
+  });
+
+  it("gives CPI instructions different discriminators than simulated ones", () => {
+    const sim = new Set(
+      SIMULATED_INSTRUCTIONS.map((n) => bytesToHex(anchorDiscriminator(n))),
+    );
+    for (const cpi of CPI_INSTRUCTIONS) {
+      // A real-CPI call can never be mistaken for / fall back to a simulated call.
+      expect(sim.has(bytesToHex(anchorDiscriminator(cpi)))).toBe(false);
+    }
+  });
+
+  it("keeps the simulated reference path encodable (still works for ABI tests)", () => {
+    const id = adapterId("kamino-usdc");
+    expect(encodeDeposit(id, 1n, 0n)).toHaveLength(56);
+    expect(encodeWithdraw(id, 1n, 0n)).toHaveLength(56);
+    expect(encodeCurrentValue(id)).toHaveLength(40);
+  });
+});

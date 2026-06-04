@@ -1,6 +1,7 @@
 #![allow(deprecated, unexpected_cfgs)]
 
 use anchor_lang::prelude::*;
+use anchor_spl::token::{Token, TokenAccount};
 
 declare_id!("BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1");
 
@@ -72,6 +73,8 @@ pub mod reference_yield_adapter {
         Ok(())
     }
 
+    /// SIMULATED REFERENCE ONLY: virtual-yield accounting, not bounty-grade
+    /// protocol CPI. Use the `*_cpi` routes for real protocol integration.
     pub fn deposit(
         ctx: Context<AdapterRoute>,
         adapter_id: [u8; 32],
@@ -201,6 +204,83 @@ pub mod reference_yield_adapter {
 
         Ok(())
     }
+
+    /// Real-CPI deposit route. Carries the SPL token plumbing plus protocol
+    /// accounts (via `remaining_accounts`) needed to move real funds. The
+    /// protocol-specific CPI body is NOT implemented yet, so this route fails
+    /// LOUDLY and never falls back to the simulated/reference yield path.
+    pub fn deposit_cpi<'info>(
+        ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+        adapter_id: [u8; 32],
+        amount: u64,
+        min_shares_out: u64,
+    ) -> Result<()> {
+        let _ = (amount, min_shares_out);
+        guard_cpi_route(&ctx, adapter_id)?;
+        reject_unimplemented_cpi(ctx.remaining_accounts.len())
+    }
+
+    /// Real-CPI withdraw route. See `deposit_cpi`: fails loudly, no simulation.
+    pub fn withdraw_cpi<'info>(
+        ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+        adapter_id: [u8; 32],
+        shares: u64,
+        min_assets_out: u64,
+    ) -> Result<()> {
+        let _ = (shares, min_assets_out);
+        guard_cpi_route(&ctx, adapter_id)?;
+        reject_unimplemented_cpi(ctx.remaining_accounts.len())
+    }
+
+    /// Real-CPI value refresh route. See `deposit_cpi`: fails loudly, no simulation.
+    pub fn current_value_cpi<'info>(
+        ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+        adapter_id: [u8; 32],
+    ) -> Result<()> {
+        guard_cpi_route(&ctx, adapter_id)?;
+        reject_unimplemented_cpi(ctx.remaining_accounts.len())
+    }
+}
+
+/// Routing decision for the real-CPI path. Intentionally has NO variant that
+/// represents a successful or simulated outcome, so the real-CPI route cannot
+/// silently fall back to the simulated reference yield.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RouteResolution {
+    MissingCpiAccounts,
+    NotImplemented,
+}
+
+/// Pure decision function (unit-testable without a validator).
+pub fn resolve_cpi_route(protocol_account_count: usize) -> RouteResolution {
+    if protocol_account_count == 0 {
+        RouteResolution::MissingCpiAccounts
+    } else {
+        RouteResolution::NotImplemented
+    }
+}
+
+/// Map the routing decision onto a loud, explicit program error. Never `Ok`.
+fn reject_unimplemented_cpi(protocol_account_count: usize) -> Result<()> {
+    match resolve_cpi_route(protocol_account_count) {
+        RouteResolution::MissingCpiAccounts => err!(AdapterError::MissingCpiAccounts),
+        RouteResolution::NotImplemented => err!(AdapterError::CpiNotImplemented),
+    }
+}
+
+fn guard_cpi_route<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+    adapter_id: [u8; 32],
+) -> Result<()> {
+    let state = &ctx.accounts.state;
+    require!(state.adapter_id == adapter_id, AdapterError::AdapterMismatch);
+    require!(!state.paused, AdapterError::Paused);
+    require_keys_eq!(
+        ctx.accounts.user_underlying.owner,
+        ctx.accounts.user.key(),
+        AdapterError::Unauthorized
+    );
+    Ok(())
 }
 
 fn assert_route(
@@ -359,6 +439,40 @@ pub struct AdapterRoute<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+#[instruction(adapter_id: [u8; 32])]
+pub struct AdapterCpiRoute<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[cfg_attr(
+        not(feature = "idl-build"),
+        account(mut, seeds = [ADAPTER_SEED, adapter_id.as_ref()], bump = state.bump)
+    )]
+    #[cfg_attr(feature = "idl-build", account(mut))]
+    pub state: Account<'info, AdapterState>,
+    #[cfg_attr(
+        not(feature = "idl-build"),
+        account(
+            init_if_needed,
+            payer = user,
+            space = Position::SPACE,
+            seeds = [POSITION_SEED, adapter_id.as_ref(), user.key().as_ref()],
+            bump
+        )
+    )]
+    #[cfg_attr(feature = "idl-build", account(mut))]
+    pub position: Account<'info, Position>,
+    /// User's underlying (e.g. USDC) token account funding the deposit/withdraw.
+    #[account(mut, constraint = user_underlying.owner == user.key() @ AdapterError::Unauthorized)]
+    pub user_underlying: Account<'info, TokenAccount>,
+    /// Adapter-side vault / receipt-holding token account.
+    #[account(mut)]
+    pub adapter_underlying: Account<'info, TokenAccount>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    // remaining_accounts: protocol-specific CPI accounts (reserve/bank/pool/oracle/...).
+}
+
 #[account]
 pub struct AdapterState {
     pub adapter_id: [u8; 32],
@@ -501,4 +615,24 @@ pub enum AdapterError {
     InsufficientShares,
     #[msg("math overflow")]
     MathOverflow,
+    #[msg("real-CPI route is missing required protocol accounts")]
+    MissingCpiAccounts,
+    #[msg("protocol CPI is not implemented yet; simulated fallback is intentionally disabled")]
+    CpiNotImplemented,
+}
+
+#[cfg(test)]
+mod cpi_route_tests {
+    use super::*;
+
+    #[test]
+    fn missing_protocol_accounts_fails_loudly() {
+        assert_eq!(resolve_cpi_route(0), RouteResolution::MissingCpiAccounts);
+    }
+
+    #[test]
+    fn present_accounts_route_is_not_implemented_not_simulated() {
+        // Must be the not-implemented decision, never a success/simulated result.
+        assert_eq!(resolve_cpi_route(3), RouteResolution::NotImplemented);
+    }
 }
