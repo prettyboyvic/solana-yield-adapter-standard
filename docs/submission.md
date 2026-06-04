@@ -222,6 +222,36 @@ pins consistent with the existing Solana 2.2.20 platform-tools pins.
 No protocol CPI (Kamino / MarginFi / Jupiter / Maple / Drift) is implemented.
 This is interface scaffolding only and is still NOT a full live-CPI bounty submission.
 
+## Kamino USDC CPI status (2026-06-04): BLOCKED in this environment
+
+Attempted the first real protocol CPI (Kamino USDC). Result: NOT implemented and
+NOT passing, blocked by environment limits. No CPI code was faked and no virtual-yield
+fallback was added for Kamino.
+
+Exact blockers (all required to produce a verified Kamino roundtrip):
+1. No Rust toolchain available here -> cannot `cargo check` / `cargo test` an
+   implementation, so any klend CPI written here would be uncompiled and unverifiable.
+2. No mainnet RPC access here -> cannot derive the Main-Market USDC reserve sub-accounts
+   (reserve_liquidity_supply, reserve_collateral_mint, reserve_destination_deposit_collateral,
+   lending_market_authority PDA, obligation PDA, oracle accounts) via @kamino-finance/klend-sdk,
+   and cannot read the reserve account on-chain. Per the no-guessing rule these must not be
+   hardcoded from memory.
+3. No local validator -> cannot run the deposit -> current value -> withdraw mainnet-fork
+   roundtrip, which is required before claiming Kamino passes.
+
+What WAS done (verified, sourced): the klend obligation-based deposit/withdraw/value
+instruction sequences and their account maps are documented in `docs/protocol-adapters.md`
+from the official klend IDL / @kamino-finance/klend-sdk. The real-CPI interface from
+commit 8671b2b still fails loudly and does not fall back to simulation.
+
+To finish Kamino on the Windows machine (has Rust/Anchor + RPC + validator):
+derive the Main-Market USDC reserve accounts via klend-sdk, implement the three CPI
+sequences in the Kamino branch of `reference_yield_adapter`, then run
+`anchor test` / the mainnet-fork roundtrip and paste tx signatures + logs here.
+
+Kamino CPI: BLOCKED (not passing). MarginFi / Jupiter / Maple / Drift: still open.
+This is NOT a claim that all five adapters pass, and NOT full bounty completion.
+
 ## Not Yet Claimable
 
 Do not claim the full bounty requirements are complete yet.

@@ -33,11 +33,47 @@ token program
 system program
 ```
 
+### Verified klend CPI flow (from official klend IDL / @kamino-finance/klend-sdk)
+
+Kamino lending (program `KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD`) uses an
+obligation-based deposit/withdraw flow. Each user action is a small instruction
+sequence; state-changing CPIs must be preceded by refreshes:
+
+Deposit (USDC -> cToken collateral in obligation):
+1. `refresh_reserve` (USDC reserve)
+2. `refresh_obligation` (lending market + obligation + touched reserves)
+3. `deposit_reserve_liquidity_and_obligation_collateral`, accounts (per klend IDL):
+   owner(signer), obligation, lending_market, lending_market_authority(PDA),
+   reserve, reserve_liquidity_supply(vault), reserve_collateral_mint,
+   reserve_destination_deposit_collateral(cToken vault), user_source_liquidity(USDC ATA),
+   user_destination_collateral(placeholder/none), collateral_token_program,
+   liquidity_token_program, instruction_sysvar.
+
+Withdraw (cToken collateral -> USDC):
+1. `refresh_reserve` + `refresh_obligation`
+2. `withdraw_obligation_collateral_and_redeem_reserve_liquidity`, accounts (per klend IDL):
+   owner(signer), obligation, lending_market, lending_market_authority(PDA), reserve,
+   reserve_source_collateral(cToken vault), reserve_collateral_mint, reserve_liquidity_supply,
+   user_destination_liquidity(USDC ATA), user_destination_collateral(placeholder),
+   collateral_token_program, liquidity_token_program, instruction_sysvar.
+
+Current value:
+- `refresh_reserve` + `refresh_obligation`, then read `obligation.deposits[].market_value`
+  (or convert collateral->liquidity via the refreshed reserve collateral exchange rate).
+
+Per-market addresses that MUST be derived on-machine via klend-sdk for the Main Market
+(do NOT hardcode unverified): lending_market, lending_market_authority(PDA), USDC reserve,
+reserve_liquidity_supply, reserve_collateral_mint, reserve_destination_deposit_collateral,
+the user obligation PDA, and the exact oracle accounts referenced by the reserve config.
+Exact instruction discriminators + per-account writable/signer flags must come from the
+pinned klend IDL version in use.
+
 Open items:
 
-- Replace `KAMINO_RECEIPT_MINT_REPLACE_WITH_MAINNET`.
-- Pin market, reserve, and obligation account derivations.
-- Implement CPI deposit/withdraw wrappers.
+- Derive Main-Market USDC reserve + its sub-accounts via `@kamino-finance/klend-sdk`
+  (`market.getReserve('USDC')`), not by pasting addresses.
+- Implement the three CPI sequences above in `reference_yield_adapter` (Kamino branch).
+- Run the dispatcher-level deposit -> current value -> withdraw mainnet-fork test.
 
 ## MarginFi USDC
 
