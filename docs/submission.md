@@ -113,4 +113,50 @@ via each protocol SDK and marked `DERIVE_VIA_PROTOCOL_SDK_ON_MACHINE`.
 USDC mint            EPjFWdd5AufqSSqeM2qzH6oEgCG1kduA3s3z2nZ7G8mm
 Kamino KLend program KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD
 MarginFi v2 program  MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA
-Drift v2 progra
+Drift v2 program     dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH   (corrected; old notes had a wrong tail)
+Jupiter JLP mint     27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4
+Maple syrupUSDC      PENDING — confirm Solana program id + mint from maple.finance (launched mid-2025)
+```
+
+Sources: Kamino KLend (explorer.solana.com / solscan), MarginFi v2 (docs.marginfi.com),
+Drift v2 (docs.drift.trade program vault addresses), JLP mint (explorer.solana.com),
+Maple syrupUSDC-on-Solana (maple.finance/insights).
+
+## Verified in sandbox (2026-06-04)
+
+```text
+npm run build      : pass (tsc)
+npm run typecheck  : pass (tsc --noEmit)
+npx vitest run     : 11 passed, 7 skipped (SDK ABI + mainnet-fork readiness)
+fork:accounts      : prints a complete solana-test-validator --clone command (5 static accounts)
+fork:run           : preflight + ordered on-machine instructions
+```
+
+`tests/mainnet-fork.spec.ts` no longer throws unconditionally: it now runs
+fork-READINESS checks (wiring coherence + clone-account set) in CI, skips protocols
+still `PENDING`, and defers the live on-validator roundtrip to `scripts/run-mainnet-fork.mjs`.
+
+## Runnable now vs still open
+
+Runnable now (this commit):
+- Real, verified program ids/mints wired; fork clone command generates cleanly.
+- Fork-readiness suite green; SDK ABI green.
+- Turnkey scripts: `scripts/devnet-deploy.ps1`, `scripts/run-mainnet-fork.mjs`.
+
+Cannot be done from this environment (no Solana toolchain, no devnet/mainnet network,
+no validator) — must run on the Windows machine with Agave/Anchor 2.2.20:
+- Devnet deploy (payer still needs >= 6 devnet SOL; faucet was rate-limited).
+- Live mainnet-fork roundtrip with real per-protocol CPI.
+
+## Not Yet Claimable
+
+Do not claim the full bounty requirements are complete yet.
+
+Still required before a final bounty-grade submission (all on the Windows machine):
+
+1. Fund the devnet payer and run `scripts/devnet-deploy.ps1` (deploy both programs).
+2. Initialize the registry and register the five reference adapter configs on devnet.
+3. Confirm Maple Solana program id + syrupUSDC mint (only remaining PENDING wiring).
+4. Implement and compile real protocol CPI for Kamino, MarginFi, Jupiter LP, Maple Syrup,
+   and Drift Insurance Fund (reference adapter currently uses a simulated virtual-yield model).
+5. Run all five mainnet-fork tests via `npm run fork:run` flow and paste tx/log evidence here.
