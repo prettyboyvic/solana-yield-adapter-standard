@@ -115,12 +115,20 @@ Kamino KLend program KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD
 MarginFi v2 program  MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA
 Drift v2 program     dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH   (corrected; old notes had a wrong tail)
 Jupiter JLP mint     27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4
-Maple syrupUSDC      PENDING — confirm Solana program id + mint from maple.finance (launched mid-2025)
+Maple syrupUSDC mint AvZZF1YaZDziPY2RCK4oJrRVrbN3mTD9NL24hPeaZeUj
+Maple CCIP Router    Ccip842gzYHhvdDkSyi2YVCoAWPbYJoApMFzSxQroE9C
+Maple CCIP Pool      HrTBpF3LqSxXnjnYdR4htnBLyMHNZ6eNaDZGPundvHbm
+Maple syrupUSDC/USDC oracle  CpNyiFt84q66665Kx64bobxZuMgZ2EecrhAJs1HikS2T
 ```
+
+Maple address PENDING is now resolved. Note: Maple syrupUSDC on Solana is a
+**Chainlink CCIP / token route, not a native Solana lending CPI** — so the maple-syrup
+adapter's live integration and mainnet-fork roundtrip are still NOT complete. Only the
+addresses are wired; no CPI was implemented in this patch.
 
 Sources: Kamino KLend (explorer.solana.com / solscan), MarginFi v2 (docs.marginfi.com),
 Drift v2 (docs.drift.trade program vault addresses), JLP mint (explorer.solana.com),
-Maple syrupUSDC-on-Solana (maple.finance/insights).
+Maple syrupUSDC + CCIP router/pool/oracle (official Maple docs, maple.finance).
 
 ## Verified in sandbox (2026-06-04)
 
@@ -156,7 +164,9 @@ Still required before a final bounty-grade submission (all on the Windows machin
 
 1. Fund the devnet payer and run `scripts/devnet-deploy.ps1` (deploy both programs).
 2. Initialize the registry and register the five reference adapter configs on devnet.
-3. Confirm Maple Solana program id + syrupUSDC mint (only remaining PENDING wiring).
-4. Implement and compile real protocol CPI for Kamino, MarginFi, Jupiter LP, Maple Syrup,
-   and Drift Insurance Fund (reference adapter currently uses a simulated virtual-yield model).
+3. Maple addresses are resolved (mint/router/pool/oracle wired). The Maple integration
+   path is a Chainlink CCIP / token route, not a lending CPI — the live flow is still TODO.
+4. Implement and compile real protocol integration for Kamino, MarginFi, Jupiter LP,
+   Maple Syrup (CCIP route), and Drift Insurance Fund (reference adapter currently uses
+   a simulated virtual-yield model). No CPI was added in this patch.
 5. Run all five mainnet-fork tests via `npm run fork:run` flow and paste tx/log evidence here.

@@ -17,6 +17,17 @@ export const DRIFT_V2_PROGRAM_ID =
   "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH";
 export const JLP_MINT = "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4";
 
+// Maple syrupUSDC on Solana is a Chainlink CCIP / token route (not a native Solana
+// lending CPI). Addresses below are from official Maple docs (verified 2026-06-04).
+export const MAPLE_SYRUP_USDC_MINT =
+  "AvZZF1YaZDziPY2RCK4oJrRVrbN3mTD9NL24hPeaZeUj";
+export const MAPLE_CCIP_ROUTER =
+  "Ccip842gzYHhvdDkSyi2YVCoAWPbYJoApMFzSxQroE9C";
+export const MAPLE_CCIP_POOL =
+  "HrTBpF3LqSxXnjnYdR4htnBLyMHNZ6eNaDZGPundvHbm";
+export const MAPLE_SYRUP_USDC_ORACLE =
+  "CpNyiFt84q66665Kx64bobxZuMgZ2EecrhAJs1HikS2T";
+
 // Accounts that are position/market-specific and must be DERIVED on-machine via
 // each protocol's SDK (not a single static address). Kept explicit so the fork
 // harness never silently uses a fake address.
@@ -128,18 +139,24 @@ export const REFERENCE_ADAPTERS: readonly ReferenceAdapterConfig[] = [
     adapterId: adapterId("maple-syrup"),
     protocol: ProtocolKind.MapleSyrup,
     underlyingMint: USDC_MINT,
-    receiptMint: PENDING,
+    receiptMint: MAPLE_SYRUP_USDC_MINT,
     capabilities: CAPABILITY_ALL,
     riskTier: 3,
     metadataUri: "ipfs://solana-yield-adapters/maple-syrup.json",
     mainnet: {
-      programId: PENDING,
+      programId: MAPLE_CCIP_ROUTER,
       underlyingMint: USDC_MINT,
-      receiptMint: PENDING,
-      cloneAccounts: [USDC_MINT],
-      derived: ["maplePool", "syrupUsdcMint", "lenderReceipt"],
+      receiptMint: MAPLE_SYRUP_USDC_MINT,
+      cloneAccounts: [
+        USDC_MINT,
+        MAPLE_SYRUP_USDC_MINT,
+        MAPLE_CCIP_ROUTER,
+        MAPLE_CCIP_POOL,
+        MAPLE_SYRUP_USDC_ORACLE,
+      ],
+      derived: ["ccipTokenPoolConfig", "ccipOnRampConfig", "userSyrupUsdcAta"],
       notes:
-        "syrupUSDC launched on Solana mid-2025 (recent). Confirm Maple Solana program id + syrupUSDC mint from maple.finance docs before wiring.",
+        "Maple syrupUSDC on Solana is a Chainlink CCIP / token route, NOT a native Solana lending CPI. Addresses (mint/router/pool/oracle) are verified, but the live mainnet-fork roundtrip and the actual integration are NOT complete.",
     },
   },
   {
