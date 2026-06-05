@@ -7,3 +7,10 @@ target/
 coverage/
 *.tsbuildinfo
 
+# Drift Gate-2 smoke-test artifacts (dumped BPF + cloned mainnet accounts; never committed)
+tools/drift-litesvm-smoke/fixtures/
+tools/drift-litesvm-smoke/fixtures/accounts/
+tools/drift-litesvm-smoke/target/
+tools/drift-litesvm-smoke/**/*.so
+tools/drift-litesvm-smoke/fixtures/**/*.json
+

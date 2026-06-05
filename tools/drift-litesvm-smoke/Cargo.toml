@@ -1,0 +1,38 @@
+# Standalone Gate-2 smoke-test crate for the Drift Insurance Fund harness.
+#
+# It declares its OWN [workspace] table below, which detaches it from the parent
+# Anchor workspace (programs/*). Running `cargo run` in this directory therefore
+# does NOT affect `cargo check --workspace`, `cargo build-sbf`, or the two
+# on-chain program crates in any way. It compiles with the normal host Rust
+# toolchain (not Solana platform-tools), since litesvm runs natively.
+[package]
+name = "drift-litesvm-smoke"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "drift-litesvm-smoke"
+path = "src/main.rs"
+
+[dependencies]
+litesvm = "0.6"
+solana-sdk = "2.2"
+serde_json = "1"
+base64 = "0.22"
+
+# openssl-sys is pulled transitively through solana-sdk's TLS dependency graph.
+# On Windows there is usually no system OpenSSL, so its build script fails
+# (OPENSSL_DIR unset / vcpkg did not find openssl). Enabling the `vendored`
+# feature on the openssl crate makes openssl-sys build OpenSSL from source, so no
+# system OpenSSL install is required. Feature unification applies this to the
+# transitively-pulled openssl-sys as well.
+# NOTE: vendored OpenSSL needs Perl + a C compiler on PATH (standard on Windows
+# via Strawberry Perl + the MSVC build tools). If you would rather cut the
+# dependency entirely, run `cargo tree -i openssl-sys` to find the TLS crate and
+# disable its default/native-tls features instead.
+openssl = { version = "0.10", features = ["vendored"] }
+
+# Empty [workspace] => this crate is its own workspace root, isolated from the
+# parent Anchor workspace. Do not add members here.
+[workspace]
