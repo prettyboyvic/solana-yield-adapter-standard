@@ -612,6 +612,113 @@ pub mod reference_yield_adapter {
         });
         Ok(())
     }
+
+    /// MarginFi USDC real-CPI deposit mutation.
+    ///
+    /// The user funds the adapter's state-PDA-owned USDC vault first, then the
+    /// state PDA signs MarginFi's `lending_account_deposit` CPI from that vault.
+    /// `remaining_accounts` contains the seven committed IDL metas followed by
+    /// the executable MarginFi program account required by `invoke_signed`.
+    pub fn marginfi_deposit<'info>(
+        ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+        adapter_id: [u8; 32],
+        amount: u64,
+        min_shares_out: u64,
+    ) -> Result<()> {
+        require!(amount > 0, AdapterError::InvalidAmount);
+        guard_marginfi_deposit_route(&ctx, adapter_id)?;
+        validate_marginfi_deposit_accounts(&ctx)?;
+
+        let shares_out = quote_deposit_shares(&ctx.accounts.state, amount)?;
+        require!(shares_out >= min_shares_out, AdapterError::SlippageExceeded);
+
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.user_underlying.to_account_info(),
+                    to: ctx.accounts.adapter_underlying.to_account_info(),
+                    authority: ctx.accounts.user.to_account_info(),
+                },
+            ),
+            amount,
+        )?;
+
+        let bump = ctx.accounts.state.bump;
+        let signer_seeds: &[&[u8]] =
+            &[ADAPTER_SEED, adapter_id.as_ref(), core::slice::from_ref(&bump)];
+        let signer = &[signer_seeds];
+        let accounts = &ctx.remaining_accounts[..MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT.len()];
+        invoke_signed(
+            &Instruction {
+                program_id: MARGINFI_PROGRAM_ID,
+                accounts: marginfi_deposit_account_metas(
+                    accounts[0].key(),
+                    accounts[1].key(),
+                    accounts[2].key(),
+                    accounts[3].key(),
+                    accounts[4].key(),
+                    accounts[5].key(),
+                    accounts[6].key(),
+                ),
+                data: marginfi_deposit_instruction_data(amount),
+            },
+            ctx.remaining_accounts,
+            signer,
+        )?;
+
+        let (_, position_bump) = Pubkey::find_program_address(
+            &[
+                POSITION_SEED,
+                adapter_id.as_ref(),
+                ctx.accounts.user.key().as_ref(),
+            ],
+            ctx.program_id,
+        );
+        initialize_position_if_needed(
+            &mut ctx.accounts.position,
+            ctx.accounts.user.key(),
+            adapter_id,
+            position_bump,
+        );
+        ctx.accounts.position.shares = ctx
+            .accounts
+            .position
+            .shares
+            .checked_add(shares_out)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.position.principal_assets = ctx
+            .accounts
+            .position
+            .principal_assets
+            .checked_add(amount)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.state.total_assets = ctx
+            .accounts
+            .state
+            .total_assets
+            .checked_add(amount)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.state.total_shares = ctx
+            .accounts
+            .state
+            .total_shares
+            .checked_add(shares_out)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.state.last_update_slot = Clock::get()?.slot;
+
+        update_position_value(&ctx.accounts.state, &mut ctx.accounts.position)?;
+
+        emit!(AdapterDeposit {
+            adapter_id,
+            user: ctx.accounts.user.key(),
+            amount,
+            shares_out,
+            position_value: ctx.accounts.position.last_value_assets,
+        });
+
+        Ok(())
+    }
 }
 
 /// Routing decision for the real-CPI path. Intentionally has NO variant that
@@ -679,6 +786,10 @@ fn guard_marginfi_init_state(state: &AdapterState, adapter_id: [u8; 32]) -> Resu
     Ok(())
 }
 
+fn guard_marginfi_deposit_state(state: &AdapterState, adapter_id: [u8; 32]) -> Result<()> {
+    guard_marginfi_init_state(state, adapter_id)
+}
+
 fn guard_kamino_cpi_route<'info>(
     ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
     adapter_id: [u8; 32],
@@ -702,6 +813,39 @@ fn guard_kamino_cpi_route<'info>(
         USDC_MINT,
         AdapterError::AdapterMismatch
     );
+    require_keys_eq!(
+        ctx.accounts.user_underlying.mint,
+        ctx.accounts.state.underlying_mint,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.mint,
+        ctx.accounts.state.underlying_mint,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.owner,
+        ctx.accounts.state.key(),
+        AdapterError::Unauthorized
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.key(),
+        adapter_underlying_vault_pda(
+            &ctx.accounts.state.key(),
+            &ctx.accounts.token_program.key(),
+            &ctx.accounts.state.underlying_mint
+        ),
+        AdapterError::AdapterMismatch
+    );
+    Ok(())
+}
+
+fn guard_marginfi_deposit_route<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+    adapter_id: [u8; 32],
+) -> Result<()> {
+    guard_cpi_route(ctx, adapter_id)?;
+    guard_marginfi_deposit_state(&ctx.accounts.state, adapter_id)?;
     require_keys_eq!(
         ctx.accounts.user_underlying.mint,
         ctx.accounts.state.underlying_mint,
@@ -776,6 +920,87 @@ fn guard_marginfi_current_value_route<'info>(
         ),
         AdapterError::AdapterMismatch
     );
+    Ok(())
+}
+
+fn validate_marginfi_deposit_accounts<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+) -> Result<()> {
+    let accounts = ctx.remaining_accounts;
+    require!(
+        accounts.len() == MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT.len() + 1,
+        AdapterError::MissingCpiAccounts
+    );
+    let instruction_accounts = &accounts[..MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT.len()];
+    require!(
+        account_info_layout_matches(
+            &marginfi_deposit_outer_account_layout(),
+            &remaining_accounts_to_specs(instruction_accounts)
+        ),
+        AdapterError::MissingCpiAccounts
+    );
+
+    require_keys_eq!(
+        instruction_accounts[0].key(),
+        MARGINFI_PRODUCTION_GROUP,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        instruction_accounts[2].key(),
+        ctx.accounts.state.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        instruction_accounts[3].key(),
+        MARGINFI_USDC_BANK,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        instruction_accounts[4].key(),
+        ctx.accounts.adapter_underlying.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        instruction_accounts[5].key(),
+        MARGINFI_USDC_LIQUIDITY_VAULT,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        instruction_accounts[6].key(),
+        ctx.accounts.token_program.key(),
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        instruction_accounts[0].owner == &MARGINFI_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        instruction_accounts[1].owner == &MARGINFI_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        instruction_accounts[3].owner == &MARGINFI_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        *instruction_accounts[4].owner,
+        ctx.accounts.token_program.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        *instruction_accounts[5].owner,
+        ctx.accounts.token_program.key(),
+        AdapterError::AdapterMismatch
+    );
+    require!(instruction_accounts[6].executable, AdapterError::MissingCpiAccounts);
+
+    let marginfi_program = &accounts[MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT.len()];
+    require_keys_eq!(
+        marginfi_program.key(),
+        MARGINFI_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(marginfi_program.executable, AdapterError::MissingCpiAccounts);
     Ok(())
 }
 
@@ -1043,6 +1268,26 @@ pub const MARGINFI_ACCOUNT_INITIALIZE_LAYOUT: [AccountLayoutSpec; 5] = [
     spec(false, false), // system_program
 ];
 
+/// MarginFi `lending_account_deposit` IDL account layout (7 instruction metas).
+pub const MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT: [AccountLayoutSpec; 7] = [
+    spec(false, false), // group
+    spec(false, true),  // marginfi_account
+    spec(true, false),  // authority (state PDA)
+    spec(false, true),  // bank
+    spec(false, true),  // signer_token_account
+    spec(false, true),  // liquidity_vault
+    spec(false, false), // token_program
+];
+
+fn marginfi_deposit_outer_account_layout() -> [AccountLayoutSpec; 7] {
+    let mut layout = MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT;
+    // The same state PDA is a writable fixed AdapterCpiRoute account because
+    // local accounting is updated after CPI, so its duplicate outer AccountInfo
+    // is privilege-promoted. The generated inner MarginFi meta stays readonly.
+    layout[2].is_writable = true;
+    layout
+}
+
 /// klend `depositReserveLiquidityAndObligationCollateralV2` account layout (17 accounts).
 pub const KAMINO_DEPOSIT_V2_LAYOUT: [AccountLayoutSpec; 17] = [
     spec(true, true),   // owner
@@ -1153,6 +1398,8 @@ pub const MARGINFI_PRODUCTION_GROUP: Pubkey =
     anchor_lang::solana_program::pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8");
 pub const MARGINFI_USDC_BANK: Pubkey =
     anchor_lang::solana_program::pubkey!("2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB");
+pub const MARGINFI_USDC_LIQUIDITY_VAULT: Pubkey =
+    anchor_lang::solana_program::pubkey!("7jaiZR5Sk8hdYN9MxTpczTcwbWpb5WEoxSANuUwveuat");
 
 // ---------------------------------------------------------------------------
 // Kamino (klend) on-chain account decoding.
@@ -1616,6 +1863,33 @@ fn marginfi_init_account_metas(
         AccountMeta::new(fee_payer, true),
         AccountMeta::new_readonly(system_program, false),
     ]
+}
+
+fn marginfi_deposit_account_metas(
+    group: Pubkey,
+    marginfi_account: Pubkey,
+    authority: Pubkey,
+    bank: Pubkey,
+    signer_token_account: Pubkey,
+    liquidity_vault: Pubkey,
+    token_program: Pubkey,
+) -> Vec<AccountMeta> {
+    vec![
+        AccountMeta::new_readonly(group, false),
+        AccountMeta::new(marginfi_account, false),
+        AccountMeta::new_readonly(authority, true),
+        AccountMeta::new(bank, false),
+        AccountMeta::new(signer_token_account, false),
+        AccountMeta::new(liquidity_vault, false),
+        AccountMeta::new_readonly(token_program, false),
+    ]
+}
+
+fn marginfi_deposit_instruction_data(amount: u64) -> Vec<u8> {
+    let mut data = anchor_sighash("lending_account_deposit").to_vec();
+    data.extend_from_slice(&amount.to_le_bytes());
+    data.push(0); // deposit_up_to_limit: Option<bool>::None
+    data
 }
 
 /// Project built `AccountMeta`s onto the compact layout specs the gate checks.
@@ -2166,6 +2440,12 @@ mod cpi_route_tests {
         fixture["plans"]["marginfi_account_initialize"].clone()
     }
 
+    fn marginfi_deposit_fixture() -> serde_json::Value {
+        let fixture: serde_json::Value = serde_json::from_str(MARGINFI_FIXTURE_JSON)
+            .expect("valid MarginFi CPI account-plan fixture");
+        fixture["plans"]["lending_account_deposit"].clone()
+    }
+
     fn marginfi_init_state() -> AdapterState {
         AdapterState {
             adapter_id: MARGINFI_USDC_ADAPTER_ID,
@@ -2291,6 +2571,180 @@ mod cpi_route_tests {
         assert!(guard_marginfi_init_state(&wrong_market, MARGINFI_USDC_ADAPTER_ID).is_err());
 
         assert!(guard_marginfi_init_state(&marginfi_init_state(), KAMINO_USDC_ADAPTER_ID).is_err());
+    }
+
+    #[test]
+    fn marginfi_deposit_layout_and_discriminator_match_committed_fixture() {
+        let plan = marginfi_deposit_fixture();
+        let accounts = plan["accounts"].as_array().expect("MarginFi deposit accounts");
+        let layout = accounts
+            .iter()
+            .map(|account| AccountLayoutSpec {
+                is_signer: account["isSigner"].as_bool().unwrap_or(false),
+                is_writable: account["isWritable"].as_bool().unwrap_or(false),
+            })
+            .collect::<Vec<_>>();
+        let names = accounts
+            .iter()
+            .map(|account| account["name"].as_str().expect("account name"))
+            .collect::<Vec<_>>();
+        let discriminator = plan["discriminator"]
+            .as_array()
+            .expect("MarginFi deposit discriminator")
+            .iter()
+            .map(|byte| byte.as_u64().expect("discriminator byte") as u8)
+            .collect::<Vec<_>>();
+
+        assert_eq!(layout, MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT.to_vec());
+        assert_eq!(
+            names,
+            [
+                "group",
+                "marginfi_account",
+                "authority",
+                "bank",
+                "signer_token_account",
+                "liquidity_vault",
+                "token_program",
+            ]
+        );
+        assert_eq!(discriminator, anchor_sighash("lending_account_deposit").to_vec());
+    }
+
+    #[test]
+    fn marginfi_deposit_meta_builder_matches_fixture_constants_and_flags() {
+        let plan = marginfi_deposit_fixture();
+        let runtime_account = Pubkey::new_unique();
+        let (state, _) = adapter_state_pda(&MARGINFI_USDC_ADAPTER_ID, &crate::ID);
+        let adapter_vault =
+            adapter_underlying_vault_pda(&state, &anchor_spl::token::ID, &USDC_MINT);
+        let metas = marginfi_deposit_account_metas(
+            MARGINFI_PRODUCTION_GROUP,
+            runtime_account,
+            state,
+            MARGINFI_USDC_BANK,
+            adapter_vault,
+            MARGINFI_USDC_LIQUIDITY_VAULT,
+            anchor_spl::token::ID,
+        );
+
+        assert_eq!(metas_to_specs(&metas), MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT);
+        assert_eq!(
+            metas.iter().map(|meta| meta.pubkey).collect::<Vec<_>>(),
+            [
+                MARGINFI_PRODUCTION_GROUP,
+                runtime_account,
+                state,
+                MARGINFI_USDC_BANK,
+                adapter_vault,
+                MARGINFI_USDC_LIQUIDITY_VAULT,
+                anchor_spl::token::ID,
+            ]
+        );
+        assert_eq!(
+            plan["accounts"][0]["pubkey"].as_str().expect("fixture group"),
+            MARGINFI_PRODUCTION_GROUP.to_string()
+        );
+        assert_eq!(
+            plan["accounts"][1]["pubkey"].as_str().expect("runtime account"),
+            "GENERATED_AT_RUNTIME"
+        );
+        assert!(plan["accounts"][1]["generatedAtRuntime"]
+            .as_bool()
+            .expect("runtime marker"));
+        assert_eq!(
+            plan["accounts"][2]["pubkey"].as_str().expect("fixture authority"),
+            state.to_string()
+        );
+        assert_eq!(
+            plan["accounts"][3]["pubkey"].as_str().expect("fixture bank"),
+            MARGINFI_USDC_BANK.to_string()
+        );
+        assert_eq!(
+            plan["accounts"][4]["pubkey"].as_str().expect("fixture adapter vault"),
+            adapter_vault.to_string()
+        );
+        assert_eq!(
+            plan["accounts"][5]["pubkey"].as_str().expect("fixture liquidity vault"),
+            MARGINFI_USDC_LIQUIDITY_VAULT.to_string()
+        );
+        assert_eq!(
+            plan["accounts"][6]["pubkey"].as_str().expect("fixture token program"),
+            anchor_spl::token::ID.to_string()
+        );
+    }
+
+    #[test]
+    fn marginfi_deposit_instruction_data_encodes_amount_and_none_limit() {
+        let amount = 0x0807_0605_0403_0201;
+        let data = marginfi_deposit_instruction_data(amount);
+
+        assert_eq!(data.len(), 17);
+        assert_eq!(&data[..8], &anchor_sighash("lending_account_deposit"));
+        assert_eq!(&data[8..16], &amount.to_le_bytes());
+        assert_eq!(data[16], 0);
+    }
+
+    #[test]
+    fn marginfi_deposit_guard_accepts_only_configured_state() {
+        assert!(
+            guard_marginfi_deposit_state(&marginfi_init_state(), MARGINFI_USDC_ADAPTER_ID).is_ok()
+        );
+
+        let mut paused = marginfi_init_state();
+        paused.paused = true;
+        assert!(guard_marginfi_deposit_state(&paused, MARGINFI_USDC_ADAPTER_ID).is_err());
+
+        let mut wrong_protocol = marginfi_init_state();
+        wrong_protocol.protocol = ProtocolKind::KaminoUsdc as u8;
+        assert!(
+            guard_marginfi_deposit_state(&wrong_protocol, MARGINFI_USDC_ADAPTER_ID).is_err()
+        );
+
+        let mut wrong_market = marginfi_init_state();
+        wrong_market.protocol_market = Pubkey::new_unique();
+        assert!(guard_marginfi_deposit_state(&wrong_market, MARGINFI_USDC_ADAPTER_ID).is_err());
+
+        let mut wrong_mint = marginfi_init_state();
+        wrong_mint.underlying_mint = Pubkey::new_unique();
+        assert!(guard_marginfi_deposit_state(&wrong_mint, MARGINFI_USDC_ADAPTER_ID).is_err());
+
+        assert!(
+            guard_marginfi_deposit_state(&marginfi_init_state(), KAMINO_USDC_ADAPTER_ID).is_err()
+        );
+    }
+
+    #[test]
+    fn marginfi_deposit_layout_fails_loudly_on_missing_or_wrong_accounts() {
+        assert!(!account_layout_matches(
+            &MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT,
+            &MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT[..6],
+        ));
+
+        let mut wrong = MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT;
+        wrong[3].is_writable = false;
+        assert!(!account_layout_matches(
+            &MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT,
+            &wrong,
+        ));
+    }
+
+    #[test]
+    fn marginfi_deposit_outer_layout_allows_only_state_writable_promotion() {
+        let outer = marginfi_deposit_outer_account_layout();
+        assert!(outer[2].is_writable);
+        assert!(!MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT[2].is_writable);
+        assert_eq!(
+            outer
+                .iter()
+                .enumerate()
+                .filter(|(index, spec)| {
+                    spec.is_writable != MARGINFI_LENDING_ACCOUNT_DEPOSIT_LAYOUT[*index].is_writable
+                })
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>(),
+            [2]
+        );
     }
 
     #[test]
