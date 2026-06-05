@@ -156,9 +156,14 @@ const marginfiFixturePath = path.resolve(
   __dirname,
   "../packages/sdk/fixtures/marginfi-cpi-account-plan.json",
 );
+const marginfiForkMapPath = path.resolve(
+  __dirname,
+  "../packages/sdk/fixtures/marginfi-mainnet-fork-account-map.json",
+);
 
 describe("marginfi mainnet-fork readiness", () => {
   const fx = JSON.parse(fs.readFileSync(marginfiFixturePath, "utf8"));
+  const forkMap = JSON.parse(fs.readFileSync(marginfiForkMapPath, "utf8"));
 
   it("exposes the three MarginFi CPI plans with 8-byte discriminators", () => {
     for (const ix of [
@@ -191,5 +196,27 @@ describe("marginfi mainnet-fork readiness", () => {
       "bank",
       "oracle",
     ]);
+  });
+
+  it("pins the MarginFi live-fork clone map without treating runtime accounts as clones", () => {
+    expect(forkMap.evidenceSlot).toBe(424351480);
+    expect(forkMap.cloneAccounts).toMatchObject({
+      usdcMint: fx.underlyingMint,
+      marginfiGroup: fx.group,
+      usdcBank: fx.usdcBank,
+      bankLiquidityVault:
+        fx.plans.lending_account_deposit.accounts[5].pubkey,
+      bankOracle: "Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX",
+    });
+    expect(forkMap.derivedAccounts).toMatchObject({
+      adapterState: fx.custody.marginfiAccountAuthority,
+      adapterVault: fx.custody.adapterUnderlyingVault,
+      bankLiquidityVaultAuthority:
+        fx.plans.lending_account_withdraw.accounts[5].pubkey,
+    });
+    expect(forkMap.runtimeAccounts.marginfiAccount).toContain(
+      "fresh keypair signer",
+    );
+    expect(forkMap.status).toContain("live roundtrip not run");
   });
 });

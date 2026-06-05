@@ -1,0 +1,45 @@
+{
+  "schema": "marginfi-mainnet-fork-account-map/v1",
+  "source": "tests/fixtures/marginfi-current-value-424351480.json + packages/sdk/fixtures/marginfi-cpi-account-plan.json",
+  "evidenceSlot": 424351480,
+  "programs": {
+    "marginfi": "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
+    "referenceAdapter": "BCvRj9JakpU1mpo67yt7WjknSAcTqAJMWCSyurcRhBb1",
+    "dispatcher": "37fdMFG3eh91i7WYk4MgwYBGqoXK4dbpV73UUh6uxvtY"
+  },
+  "cloneAccounts": {
+    "usdcMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "marginfiGroup": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",
+    "usdcBank": "2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
+    "bankLiquidityVault": "7jaiZR5Sk8hdYN9MxTpczTcwbWpb5WEoxSANuUwveuat",
+    "bankOracle": "Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX"
+  },
+  "derivedAccounts": {
+    "adapterState": "CfG2iD5YizACMXNsLbfmkwym51EM59RrP99xX5yZADvg",
+    "adapterVault": "2xg8GdS1KsRRCotGj3Ziy9KYX8wDqbjdERHo7YB6bN66",
+    "bankLiquidityVaultAuthority": "3uxNepDbmkDNq6JhRja5Z8QwbTrfmkKP8AKZV5chYDGG"
+  },
+  "runtimeAccounts": {
+    "user": "fresh funded keypair signer",
+    "userUsdc": "funded USDC ATA owned by user",
+    "position": "reference adapter PDA([\"position\", adapter_id, user])",
+    "marginfiAccount": "fresh keypair signer created by marginfi_init"
+  },
+  "localValidatorProvides": [
+    "system program",
+    "SPL token program",
+    "sysvars"
+  ],
+  "notRequiredByCurrentRoutes": [
+    "bank insurance vault",
+    "bank fee vault"
+  ],
+  "sequence": [
+    "initialize_adapter with value_oracle=bankOracle",
+    "marginfi_init with fresh marginfiAccount signer",
+    "marginfi_deposit",
+    "current_value_cpi with [usdcBank, marginfiAccount]",
+    "marginfi_withdraw with health remaining accounts [usdcBank, bankOracle]"
+  ],
+  "status": "ACCOUNT_MAP_READY; live roundtrip not run"
+}

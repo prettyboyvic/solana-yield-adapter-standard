@@ -95,6 +95,32 @@ current value matched the redeemed amount within 1 lamport
 Full transaction signatures, compute units, account deltas, state fields, and
 log excerpts are recorded in `docs/submission.md`.
 
+## MarginFi Live-Fork Preflight
+
+The scoped MarginFi preflight validates the committed fork account map against
+the real raw USDC bank fixture and the official
+`@mrgnlabs/marginfi-client-v2@6.4.2` IDL decoder. It prints the exact
+`solana-test-validator` command, but deliberately does not start a validator or
+send transactions.
+
+Windows PowerShell command:
+
+```powershell
+$env:MAINNET_RPC_URL = "https://api.mainnet-beta.solana.com"
+node scripts\marginfi-mainnet-fork-preflight.mjs
+```
+
+The account map pins the MarginFi program, USDC mint, production group, USDC
+bank, bank liquidity vault, and bank oracle. The adapter state, adapter vault,
+and liquidity-vault authority are deterministic derived accounts. The user,
+user USDC account, position PDA, and fresh signer-backed MarginFi account remain
+runtime-created accounts. Slot `424351480` is the raw-byte account-map evidence
+slot; the preflight queries the RPC's current finalized slot for the validator
+warp so cloned oracle data is not paired with a stale clock.
+
+This is account-map readiness only. No MarginFi live fork roundtrip or
+transaction evidence is claimed.
+
 ## Current Readiness Coverage
 
 The default Vitest fork suite is an offline readiness gate, not a fake live pass.
