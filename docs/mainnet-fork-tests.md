@@ -1,9 +1,10 @@
 # Mainnet-Fork Tests
 
 The bounty requires all five adapters to pass against mainnet state. This
-repository now has one scoped Kamino USDC live mainnet-fork roundtrip pass; the
-remaining four adapters still need real integrations and live evidence before a
-full bounty claim.
+repository now has scoped Kamino USDC and MarginFi USDC live mainnet-fork
+roundtrip passes; the remaining three adapters (Jupiter LP, Maple Syrup, Drift
+Insurance Fund) still need real integrations and live evidence before a full
+bounty claim.
 
 ## Required Toolchain
 
@@ -118,8 +119,51 @@ runtime-created accounts. Slot `424351480` is the raw-byte account-map evidence
 slot; the preflight queries the RPC's current finalized slot for the validator
 warp so cloned oracle data is not paired with a stale clock.
 
-This is account-map readiness only. No MarginFi live fork roundtrip or
-transaction evidence is claimed.
+## MarginFi Live Runner
+
+The scoped MarginFi runner (`scripts/marginfi-mainnet-fork-roundtrip.mjs`) starts
+its own pinned `solana-test-validator` fork, clones the committed MarginFi
+program plus the USDC bank/group/liquidity-vault/oracle from the account map,
+loads the local SBF artifacts, creates local user/vault token fixtures, generates
+a fresh signer-backed MarginFi account, and runs the sequence:
+
+1. `initialize_adapter` (value_oracle = bank oracle);
+2. `marginfi_init` with the fresh MarginFi account signer;
+3. `marginfi_deposit`;
+4. read-only `current_value_cpi` over `[usdc_bank, marginfi_account]`;
+5. full `marginfi_withdraw` with health accounts `[usdc_bank, bank_oracle]`.
+
+Windows command sequence used for the passing run:
+
+```powershell
+$sol = "C:\Users\vudat\.local\share\solana\install\releases\2.2.20\solana-release\bin"
+$pt = "$sol\platform-tools-sdk\sbf\dependencies\platform-tools\rust\bin"
+$env:PATH = "$pt;$env:PATH"
+$env:RUSTC = "$pt\rustc.exe"
+& "$pt\cargo.exe" build --release --target sbf-solana-solana --workspace
+$env:MAINNET_RPC_URL = "https://api.mainnet-beta.solana.com"
+node scripts\marginfi-mainnet-fork-roundtrip.mjs
+```
+
+Passing evidence captured on 2026-06-05:
+
+```text
+forkSlot=424380501  evidenceSlot=424351480
+ROUNDTRIP_OK
+deposit -> current_value -> withdraw: PASS
+user USDC: 2000000 -> 1000000 -> 1000000 -> 2000000
+bank liquidity vault: 390125657535 -> 390126657535 -> 390126657535 -> 390125657535
+adapter totalAssets: 0 -> 1000000 -> 999999 -> 0
+adapter totalShares: 0 -> 1000000 -> 1000000 -> 0
+position shares: 1000000 -> 0
+redeemedToUser=1000000  finalUserDeltaVsStart=0
+```
+
+Full transaction signatures, compute units, and account fields are recorded in
+`docs/submission.md`. This live runner is scoped to MarginFi USDC only;
+`CPI_IMPLEMENTED` remains `false` and it is not an all-five-adapter pass. The
+preflight above remains an account-map readiness gate that does not start a
+validator.
 
 ## Current Readiness Coverage
 

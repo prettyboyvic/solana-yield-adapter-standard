@@ -1,6 +1,6 @@
 # Submission Notes
 
-**Status: partial live evidence / not submitted - Kamino mainnet-fork roundtrip passed, but this is not a full bounty claim.**
+**Status: partial live evidence / not submitted - Kamino and MarginFi USDC mainnet-fork roundtrips passed, but this is not a full bounty claim (not all five adapters; `CPI_IMPLEMENTED` stays false).**
 Repo pushed and synced through `53bd145`. Devnet deploy is DONE, and the Kamino
 USDC path now has deposit CPI, full-pool withdraw CPI, a real current-value
 decoder, an official klend-sdk oracle fixture, and one local mainnet-fork
@@ -178,6 +178,91 @@ withdraw: Closing account
 farm after withdraw: stake 843363 -> 0
 ```
 
+## MarginFi USDC live mainnet-fork roundtrip (2026-06-05)
+
+Scoped to the MarginFi USDC direct reference-adapter runner
+`scripts/marginfi-mainnet-fork-roundtrip.mjs`. This is not a dispatcher/full-SDK
+claim and not an all-five-adapter pass. `CPI_IMPLEMENTED` remains `false`.
+
+Command (Windows PowerShell, from repo root):
+
+```powershell
+$env:MAINNET_RPC_URL = "https://api.mainnet-beta.solana.com"
+node scripts\marginfi-mainnet-fork-roundtrip.mjs
+```
+
+Live mainnet-fork roundtrip status:
+
+```text
+PASS / ROUNDTRIP_OK (local solana-test-validator mainnet fork, 2026-06-05)
+runner=node scripts\marginfi-mainnet-fork-roundtrip.mjs
+forkSlot=424380501
+evidenceSlot=424351480
+localRpc=http://127.0.0.1:8899
+sequence=initialize_adapter -> marginfi_init -> marginfi_deposit
+         -> current_value_cpi -> marginfi_withdraw
+mutationPath=MarginFi lending_account_deposit / lending_account_withdraw CPI
+sbf=target\sbf-solana-solana\release\reference_yield_adapter.so (607104 bytes, 2026-06-05 10:37)
+result=deposit, current_value, and full withdraw passed
+rounding=user fully recovered 1000000 of 1000000 deposited USDC lamports
+         (finalUserDeltaVsStart=0); current_value decoded 999999, within 1
+         lamport of deposited principal.
+```
+
+Fork transaction evidence:
+
+| Step | Signature | CU |
+|---|---|---:|
+| initializeAdapter | `n61AXttuhJYbw2fao9g4KnwXdA1Ju8J1HUqgDkk6X5aGVCmE4W2U8fN8P6mrkGPDbjb7qzGNjhAwHNjhkd9xJL3` | 14,009 |
+| marginfiInit | `4UUR9W4Df3WR3TRArmj6GuxcfpmCunuNTFfiQ51gRBQYzY155RUQtnXS554HMovybZv98XNVV8VAJ3LsrwtoHstp` | 15,261 |
+| deposit | `3TXGZ3qRc25YcyD5VhTwzEqQS43nV8c8XTaw7D3fonnNoR7x6md5GtwhgBf4fHdjcDguWMgDQWeATxCM7LEK7tDn` | 158,546 |
+| currentValue | `2ATbLeT1SE8JhPJQrNFqNQ89edRdZ4QeKTg54gRF2bqWzGUkGKRPVYh5L6cf2DEDwKCzvWR3BKMBqVcctxNGDpPz` | 25,049 |
+| withdraw | `4tL7VRmVomTNqv6SAJx9uy24nmgYZgu4zy8vm1cwAzQ6Uxm1DByyhmTzS3kSho9NeuXN9iikSWDUQ9jgKsZfZecC` | 152,024 |
+
+Fork account evidence:
+
+```text
+user=2Tbze5pPWetSJpzEouTkw2n4PFxnvMN6tTn5tCkaspkb
+state=CfG2iD5YizACMXNsLbfmkwym51EM59RrP99xX5yZADvg
+position=7vZjaJfRCj8cmTJo3J6WKkCi6qocNaHYh4WNs9bhiWBw
+userUsdc=BZzF2GhpqqvnRSCz5s3AM7T5HQytmyKFzg7bkk7duNwP
+adapterVault=2xg8GdS1KsRRCotGj3Ziy9KYX8wDqbjdERHo7YB6bN66
+marginfiAccount=8Q7ABWcW8ZD959CYx8DLhGGFGxY4NYgkvgFQQkqeEt65
+depositAmount=1000000
+```
+
+Fork deltas:
+
+| Field | Before | After deposit | After current_value | After withdraw |
+|---|---:|---:|---:|---:|
+| user USDC | 2,000,000 | 1,000,000 | 1,000,000 | 2,000,000 |
+| bank liquidity vault | 390,125,657,535 | 390,126,657,535 | 390,126,657,535 | 390,125,657,535 |
+| adapter totalAssets | 0 (after init) | 1,000,000 | 999,999 | 0 |
+| adapter totalShares | 0 (after init) | 1,000,000 | 1,000,000 | 0 |
+| position shares | - | 1,000,000 | 1,000,000 | 0 |
+
+`redeemedToUser=1000000`, `finalUserDeltaVsStart=0`.
+
+Notes captured from the fork:
+
+```text
+- Deposit reduced user USDC by exactly 1000000 (2000000 -> 1000000) and added
+  1000000 to the MarginFi USDC bank liquidity vault.
+- current_value_cpi is read-only against MarginFi: it set adapter totalAssets to
+  999999 (1-lamport rounding under principal) without moving funds.
+- Full withdraw redeemed 1000000 back to the user (vault delta restored to
+  390125657535) and zeroed adapter totals and position shares.
+- The fresh signer-backed MarginFi account (8Q7ABWcW8ZD959CYx8DLhGGFGxY4NYgkvgFQQkqeEt65)
+  was created during marginfi_init and reused read-only by current_value and as
+  the marginfi_account meta in deposit/withdraw.
+- Live program logs confirmed Anchor dispatch entered MarginfiInit,
+  MarginfiDeposit, CurrentValueCpi, and MarginfiWithdraw. A simple Node byte scan
+  for raw discriminators returning -1 is not a failure signal; on-chain dispatch
+  is the source of truth.
+- Post-success `ws ECONNREFUSED 127.0.0.1:8900` lines are harmless; they occur
+  after ROUNDTRIP_OK when the validator is intentionally killed.
+```
+
 Generic CPI route audit:
 
 - Generic non-Kamino `deposit_cpi`, `withdraw_cpi`, and `current_value_cpi` still
@@ -186,9 +271,11 @@ Generic CPI route audit:
   exists.
 - Kamino-specific real paths now present: `kamino_init`, `kamino_deposit`,
   full-pool `kamino_withdraw`, and read-only real `current_value_cpi`.
-- MarginFi, Jupiter LP, Maple Syrup, and Drift Insurance Fund still do not have
-  real protocol CPI implementations. Their generic CPI routes remain loud-fail
-  only.
+- MarginFi-specific real paths now present and live-fork verified (2026-06-05):
+  `marginfi_init`, `marginfi_deposit`, full `marginfi_withdraw`, and read-only
+  real `current_value_cpi`.
+- Jupiter LP, Maple Syrup, and Drift Insurance Fund still do not have real
+  protocol CPI implementations. Their generic CPI routes remain loud-fail only.
 - Maple Syrup remains a Chainlink CCIP / token-route integration, not a native
   lending CPI path.
 

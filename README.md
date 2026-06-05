@@ -19,8 +19,9 @@ The repository defines:
 ## Status
 
 This workspace is ready for source review and SDK verification, and it now has
-one Kamino USDC live mainnet-fork roundtrip pass. It is still not a full bounty
-claim.
+Kamino USDC and MarginFi USDC live mainnet-fork roundtrip passes. It is still not
+a full bounty claim: `CPI_IMPLEMENTED` stays `false` and this is not an
+all-five-adapter pass.
 
 Current pushed Kamino USDC coverage:
 
@@ -37,21 +38,34 @@ Current pushed Kamino USDC coverage:
   `kamino_withdraw` passed. Evidence is recorded in
   `docs/submission.md`.
 
+Current pushed MarginFi USDC coverage:
+
+- Real `marginfi_init`, `marginfi_deposit`, `current_value_cpi` (read-only), and
+  full `marginfi_withdraw` CPI paths.
+- Local mainnet-fork roundtrip at fork slot `424380501` (evidence slot
+  `424351480`): `initialize_adapter -> marginfi_init -> marginfi_deposit ->
+  current_value_cpi -> marginfi_withdraw` printed `ROUNDTRIP_OK`. Deposit reduced
+  user USDC by exactly `1000000`, `current_value` decoded `999999`, and full
+  withdraw restored the user to `2000000` (`finalUserDeltaVsStart=0`). Evidence
+  is recorded in `docs/submission.md`. Runner:
+  `scripts/marginfi-mainnet-fork-roundtrip.mjs`.
+
 Guarded / still not claimed:
 
 - `CPI_IMPLEMENTED` remains `false`; the SDK does not advertise full CPI
   completion.
-- The live fork evidence is Kamino-only and direct-reference-adapter scoped; it
-  is not an all-five-adapter pass.
+- The live fork evidence covers Kamino USDC and MarginFi USDC through the direct
+  reference-adapter runners only; it is not an all-five-adapter pass.
 - At fixture slot `424277911`, the adapter-derived Kamino obligation was not
   initialized on mainnet; the fixture records that caveat and uses a separate
   initialized USDC obligation only for decoder proof.
-- Partial Kamino withdraw and the other four protocol real-CPI paths remain
-  loud-fail / not implemented.
+- Partial Kamino withdraw and the remaining three protocol real-CPI paths
+  (Jupiter LP, Maple Syrup, Drift Insurance Fund) remain loud-fail / not
+  implemented.
 
-A full bounty-grade submission still requires the remaining four protocol
-integrations and live mainnet-fork evidence for all five adapters against a
-pinned RPC snapshot.
+A full bounty-grade submission still requires the remaining three protocol
+integrations (Jupiter LP, Maple Syrup, Drift Insurance Fund) and live
+mainnet-fork evidence for all five adapters against a pinned RPC snapshot.
 
 ## Quick Start
 
