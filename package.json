@@ -19,9 +19,14 @@
     "kamino:derive": "tsx scripts/derive-kamino-accounts.ts",
     "kamino:cpi-plan": "tsx scripts/export-kamino-cpi-plan.ts",
     "marginfi:derive": "tsx scripts/derive-marginfi-accounts.ts",
-    "marginfi:cpi-plan": "tsx scripts/export-marginfi-cpi-plan.ts"
+    "marginfi:cpi-plan": "tsx scripts/export-marginfi-cpi-plan.ts",
+    "jupiter:derive": "tsx scripts/derive-jupiter-accounts.ts",
+    "jupiter:cpi-plan": "tsx scripts/export-jupiter-cpi-plan.ts",
+    "jupiter:current-value:capture": "tsx scripts/capture-jupiter-current-value-fixture.ts",
+    "jupiter:fork-roundtrip": "node scripts/jupiter-mainnet-fork-roundtrip.mjs"
   },
   "devDependencies": {
+    "@coral-xyz/anchor": "0.28.0",
     "@hubbleprotocol/farms-sdk": "^1.0.3",
     "@kamino-finance/klend-sdk": "^3.2.18",
     "@mrgnlabs/marginfi-client-v2": "^6.4.2",

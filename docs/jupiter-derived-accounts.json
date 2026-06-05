@@ -1,0 +1,378 @@
+{
+  "schema": "jupiter-derived-accounts/v1",
+  "source": "Jupiter Perps Anchor IDL stored on mainnet + verified mainnet account reads and PDA derivations",
+  "generatedBy": "scripts/derive-jupiter-accounts.ts",
+  "observedSlot": 424396409,
+  "program": "PERPHjGBqRHArX4DySjwM6UJHiR3sWAatqfdBS2qQJu",
+  "onChainIdl": {
+    "address": "38GK1i4cQPAxqrbfKX4RRMNfXpKRn5PgLFHVJeXm1C8Y",
+    "name": "perpetuals",
+    "version": "0.1.0"
+  },
+  "underlyingMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "receiptMint": "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4",
+  "perpetuals": "H4ND9aYttUVLFmNypZqLjZ52FYiGvdEB45GmwNoKEjTj",
+  "perpetualsBump": 255,
+  "transferAuthority": "AVzP2GeRmqGphJsMxWoqjpUifPpCret7LqWhD8NWQK49",
+  "transferAuthorityBump": 254,
+  "eventAuthority": "37hJBDnntwqhGbK7L6M1bLyvccj4u55CCUiLPdYkiqBN",
+  "eventAuthorityBump": 253,
+  "eventAuthorityExistsOnMainnet": false,
+  "pool": {
+    "address": "5BUwFW4nRbftYTDMbgxykoFWqWHPzahFSNAaaaJtVKsq",
+    "name": "Pool",
+    "aumUsd": "755274787996536",
+    "aumUsdRefreshedAtSlot": "424396404",
+    "custodies": [
+      "7xS2gz2bTp3fwCC7knJvUWTEU9Tycczu6VhJYKgi1wdz",
+      "AQCGyheWPLeo6Qp9WpYS9m3Qj479t7R636N9ey1rEjEn",
+      "5Pv3gM9JrFFH883SWAhvJC9RPYmo8UNxuFtv5bMMALkm",
+      "G18jKKXQwBbrHeiK3C9MRXhkHsLHf7XgCSisykV46EZa",
+      "4vkNeXiYEUizLdrpdPS1eC2mccyM4NUPRtERrk6ZETkk"
+    ],
+    "dovesAgPriceAccounts": [
+      "FYq2BWQ1V5P1WFBqr3qB2Kb5yHVvSv7upzKodgQE5zXh",
+      "AFZnHPzy4mvVCffrVwhewHbFc93uTHvDSFrVH7GtfXF1",
+      "hUqAT1KQ7eW1i6Csp9CXYtpPfSAvi835V7wKi5fRfmC",
+      "6Jp2xZUTWdDD2ZyUPRzeMdc6AFQ5K3pFgZxk2EijfjnM",
+      "Fgc93D641F8N2d1xLjQ4jmShuD3GE3BsCXA56KBQbF5u"
+    ],
+    "aumRemainingAccounts": [
+      {
+        "name": "aumCustody0",
+        "pubkey": "7xS2gz2bTp3fwCC7knJvUWTEU9Tycczu6VhJYKgi1wdz",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "name": "aumCustody1",
+        "pubkey": "AQCGyheWPLeo6Qp9WpYS9m3Qj479t7R636N9ey1rEjEn",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "name": "aumCustody2",
+        "pubkey": "5Pv3gM9JrFFH883SWAhvJC9RPYmo8UNxuFtv5bMMALkm",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "name": "aumCustody3",
+        "pubkey": "G18jKKXQwBbrHeiK3C9MRXhkHsLHf7XgCSisykV46EZa",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "name": "aumCustody4",
+        "pubkey": "4vkNeXiYEUizLdrpdPS1eC2mccyM4NUPRtERrk6ZETkk",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "name": "aumDovesAgPriceAccount0",
+        "pubkey": "FYq2BWQ1V5P1WFBqr3qB2Kb5yHVvSv7upzKodgQE5zXh",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "name": "aumDovesAgPriceAccount1",
+        "pubkey": "AFZnHPzy4mvVCffrVwhewHbFc93uTHvDSFrVH7GtfXF1",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "name": "aumDovesAgPriceAccount2",
+        "pubkey": "hUqAT1KQ7eW1i6Csp9CXYtpPfSAvi835V7wKi5fRfmC",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "name": "aumDovesAgPriceAccount3",
+        "pubkey": "6Jp2xZUTWdDD2ZyUPRzeMdc6AFQ5K3pFgZxk2EijfjnM",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "name": "aumDovesAgPriceAccount4",
+        "pubkey": "Fgc93D641F8N2d1xLjQ4jmShuD3GE3BsCXA56KBQbF5u",
+        "isSigner": false,
+        "isWritable": false
+      }
+    ]
+  },
+  "usdcCustody": {
+    "address": "G18jKKXQwBbrHeiK3C9MRXhkHsLHf7XgCSisykV46EZa",
+    "tokenAccount": "WzWUoCmtVv7eqAbU3BfKPU3fhLP6CXR8NCJH78UK9VS",
+    "dovesAgPriceAccount": "6Jp2xZUTWdDD2ZyUPRzeMdc6AFQ5K3pFgZxk2EijfjnM",
+    "pythnetPriceAccount": "Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX",
+    "decimals": 6,
+    "isStable": true
+  },
+  "adapterCustody": {
+    "adapterIdHex": "e164474bda149e05fb6f7f8aed1ce5274a82332c3a4b9e4f428065b517cef96a",
+    "adapterState": "2H7csAxpJp6hQB1hRArM6TrDARxBjWk9VeQ37B7UG4RQ",
+    "adapterStateBump": 252,
+    "adapterUnderlyingVault": "7AsBiXfWPQMaDyeyLk14Sm79SxjgpPSVY4CfT6L9teuY",
+    "adapterJlpVault": "HvFgkLJ5skY2rgB6YZWmmiQtpRspXTa65nkNQvsVj4B2"
+  },
+  "currentValue": {
+    "formula": "floor(adapterJlpAmount * pool.aumUsd / jlpMintSupply)",
+    "unit": "pool.aumUsd and JLP mint both use 6 decimals, so the result is USDC lamports (6 decimals)",
+    "accounts": [
+      "5BUwFW4nRbftYTDMbgxykoFWqWHPzahFSNAaaaJtVKsq",
+      "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4",
+      "HvFgkLJ5skY2rgB6YZWmmiQtpRspXTa65nkNQvsVj4B2"
+    ]
+  },
+  "instructions": {
+    "addLiquidity2": {
+      "instruction": "addLiquidity2",
+      "discriminator": [
+        228,
+        162,
+        78,
+        28,
+        70,
+        219,
+        116,
+        115
+      ],
+      "argNames": [
+        "params"
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "isSigner": true,
+          "isWritable": false
+        },
+        {
+          "name": "fundingAccount",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "lpTokenAccount",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "transferAuthority",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "perpetuals",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "pool",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "custody",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "custodyDovesPriceAccount",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "custodyPythnetPriceAccount",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "custodyTokenAccount",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "lpTokenMint",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "tokenProgram",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "eventAuthority",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "program",
+          "isSigner": false,
+          "isWritable": false
+        }
+      ]
+    },
+    "removeLiquidity2": {
+      "instruction": "removeLiquidity2",
+      "discriminator": [
+        230,
+        215,
+        82,
+        127,
+        241,
+        101,
+        227,
+        146
+      ],
+      "argNames": [
+        "params"
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "isSigner": true,
+          "isWritable": false
+        },
+        {
+          "name": "receivingAccount",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "lpTokenAccount",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "transferAuthority",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "perpetuals",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "pool",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "custody",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "custodyDovesPriceAccount",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "custodyPythnetPriceAccount",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "custodyTokenAccount",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "lpTokenMint",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "name": "tokenProgram",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "eventAuthority",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "name": "program",
+          "isSigner": false,
+          "isWritable": false
+        }
+      ]
+    }
+  },
+  "cloneAccounts": [
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4",
+    "H4ND9aYttUVLFmNypZqLjZ52FYiGvdEB45GmwNoKEjTj",
+    "AVzP2GeRmqGphJsMxWoqjpUifPpCret7LqWhD8NWQK49",
+    "5BUwFW4nRbftYTDMbgxykoFWqWHPzahFSNAaaaJtVKsq",
+    "G18jKKXQwBbrHeiK3C9MRXhkHsLHf7XgCSisykV46EZa",
+    "WzWUoCmtVv7eqAbU3BfKPU3fhLP6CXR8NCJH78UK9VS",
+    "6Jp2xZUTWdDD2ZyUPRzeMdc6AFQ5K3pFgZxk2EijfjnM",
+    "Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX",
+    "7xS2gz2bTp3fwCC7knJvUWTEU9Tycczu6VhJYKgi1wdz",
+    "AQCGyheWPLeo6Qp9WpYS9m3Qj479t7R636N9ey1rEjEn",
+    "5Pv3gM9JrFFH883SWAhvJC9RPYmo8UNxuFtv5bMMALkm",
+    "4vkNeXiYEUizLdrpdPS1eC2mccyM4NUPRtERrk6ZETkk",
+    "FYq2BWQ1V5P1WFBqr3qB2Kb5yHVvSv7upzKodgQE5zXh",
+    "AFZnHPzy4mvVCffrVwhewHbFc93uTHvDSFrVH7GtfXF1",
+    "hUqAT1KQ7eW1i6Csp9CXYtpPfSAvi835V7wKi5fRfmC",
+    "Fgc93D641F8N2d1xLjQ4jmShuD3GE3BsCXA56KBQbF5u"
+  ],
+  "accountInfo": {
+    "PERPHjGBqRHArX4DySjwM6UJHiR3sWAatqfdBS2qQJu": {
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "dataLength": 36
+    },
+    "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4": {
+      "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "executable": false,
+      "dataLength": 82
+    },
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": {
+      "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "executable": false,
+      "dataLength": 82
+    },
+    "H4ND9aYttUVLFmNypZqLjZ52FYiGvdEB45GmwNoKEjTj": {
+      "owner": "PERPHjGBqRHArX4DySjwM6UJHiR3sWAatqfdBS2qQJu",
+      "executable": false,
+      "dataLength": 120
+    },
+    "AVzP2GeRmqGphJsMxWoqjpUifPpCret7LqWhD8NWQK49": {
+      "owner": "PERPHjGBqRHArX4DySjwM6UJHiR3sWAatqfdBS2qQJu",
+      "executable": false,
+      "dataLength": 0
+    },
+    "5BUwFW4nRbftYTDMbgxykoFWqWHPzahFSNAaaaJtVKsq": {
+      "owner": "PERPHjGBqRHArX4DySjwM6UJHiR3sWAatqfdBS2qQJu",
+      "executable": false,
+      "dataLength": 2000
+    },
+    "G18jKKXQwBbrHeiK3C9MRXhkHsLHf7XgCSisykV46EZa": {
+      "owner": "PERPHjGBqRHArX4DySjwM6UJHiR3sWAatqfdBS2qQJu",
+      "executable": false,
+      "dataLength": 2000
+    },
+    "WzWUoCmtVv7eqAbU3BfKPU3fhLP6CXR8NCJH78UK9VS": {
+      "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "executable": false,
+      "dataLength": 165
+    },
+    "6Jp2xZUTWdDD2ZyUPRzeMdc6AFQ5K3pFgZxk2EijfjnM": {
+      "owner": "DoVEsk76QybCEHQGzkvYPWLQu9gzNoZZZt3TPiL597e",
+      "executable": false,
+      "dataLength": 394
+    },
+    "Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX": {
+      "owner": "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ",
+      "executable": false,
+      "dataLength": 134
+    },
+    "37hJBDnntwqhGbK7L6M1bLyvccj4u55CCUiLPdYkiqBN": null
+  },
+  "disclaimer": "Account derivation only. This file does not claim that Jupiter CPI or the mainnet-fork roundtrip passes."
+}

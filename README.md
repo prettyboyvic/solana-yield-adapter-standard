@@ -19,9 +19,9 @@ The repository defines:
 ## Status
 
 This workspace is ready for source review and SDK verification, and it now has
-Kamino USDC and MarginFi USDC live mainnet-fork roundtrip passes. It is still not
-a full bounty claim: `CPI_IMPLEMENTED` stays `false` and this is not an
-all-five-adapter pass.
+scoped Kamino USDC, MarginFi USDC, and Jupiter LP mainnet-fork roundtrip passes.
+It is still not a full bounty claim: `CPI_IMPLEMENTED` stays `false` and this is
+not an all-five-adapter pass.
 
 Current pushed Kamino USDC coverage:
 
@@ -50,22 +50,39 @@ Current pushed MarginFi USDC coverage:
   is recorded in `docs/submission.md`. Runner:
   `scripts/marginfi-mainnet-fork-roundtrip.mjs`.
 
+Current Jupiter LP coverage:
+
+- Real Jupiter Perps `addLiquidity2` / `removeLiquidity2` CPI paths with the
+  state PDA holding JLP and actual minted/burned JLP used as adapter shares.
+- Deterministic 24-account mutation plan: the 14 on-chain-IDL accounts plus the
+  pool-wide five custodies and five Doves AG price accounts used for AUM.
+- Read-only fair value from
+  `floor(adapterJlpAmount * pool.aumUsd / jlpMintSupply)`, cross-checked against
+  raw mainnet bytes at slot `424386975`.
+- Local mainnet-fork roundtrip at fork slot `424386975` printed
+  `ROUNDTRIP_OK`: `1000000` USDC minted `295604` JLP, current value decoded
+  `997522`, and full withdraw returned `995637` USDC while zeroing adapter JLP,
+  totals, and position shares. The runner explicitly forwards only the five
+  cloned Doves AG `publish_time` fields because the Windows validator clock/JIT
+  startup makes untouched short-lived oracle timestamps stale.
+
 Guarded / still not claimed:
 
 - `CPI_IMPLEMENTED` remains `false`; the SDK does not advertise full CPI
   completion.
-- The live fork evidence covers Kamino USDC and MarginFi USDC through the direct
-  reference-adapter runners only; it is not an all-five-adapter pass.
+- The live fork evidence covers Kamino USDC, MarginFi USDC, and Jupiter LP
+  through direct reference-adapter runners only; it is not an all-five-adapter
+  pass.
 - At fixture slot `424277911`, the adapter-derived Kamino obligation was not
   initialized on mainnet; the fixture records that caveat and uses a separate
   initialized USDC obligation only for decoder proof.
-- Partial Kamino withdraw and the remaining three protocol real-CPI paths
-  (Jupiter LP, Maple Syrup, Drift Insurance Fund) remain loud-fail / not
-  implemented.
+- Partial Kamino withdraw remains unsupported. Maple Syrup and Drift Insurance
+  Fund still do not have real protocol mutation paths.
+- Jupiter fork evidence uses raw mainnet Doves AG account bytes with only
+  `publish_time` forwarded by the runner; it is not an untouched-oracle snapshot.
 
-A full bounty-grade submission still requires the remaining three protocol
-integrations (Jupiter LP, Maple Syrup, Drift Insurance Fund) and live
-mainnet-fork evidence for all five adapters against a pinned RPC snapshot.
+A full bounty-grade submission still requires Maple Syrup and Drift Insurance
+Fund integrations and live mainnet-fork evidence for all five adapters.
 
 ## Quick Start
 

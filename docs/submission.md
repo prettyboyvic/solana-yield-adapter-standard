@@ -1,11 +1,10 @@
 # Submission Notes
 
-**Status: partial live evidence / not submitted - Kamino and MarginFi USDC mainnet-fork roundtrips passed, but this is not a full bounty claim (not all five adapters; `CPI_IMPLEMENTED` stays false).**
-Repo pushed and synced through `53bd145`. Devnet deploy is DONE, and the Kamino
-USDC path now has deposit CPI, full-pool withdraw CPI, a real current-value
-decoder, an official klend-sdk oracle fixture, and one local mainnet-fork
-roundtrip pass. The full bounty is still not claimable until all five adapters
-have live mainnet-fork roundtrip evidence. Deadline
+**Status: partial live evidence / not submitted - scoped Kamino USDC, MarginFi USDC, and Jupiter LP mainnet-fork roundtrips passed, but this is not a full bounty claim (not all five adapters; `CPI_IMPLEMENTED` stays false).**
+Baseline `origin/main` was pushed and synced through `415c0f6` before the local
+Jupiter patch. Devnet deploy is DONE, and three direct-reference-adapter
+mainnet-fork roundtrips now pass. The full bounty is still not claimable until
+all five adapters have live mainnet-fork roundtrip evidence. Deadline
 2026-06-09 (~5 days). Not yet submitted on Superteam Earn (HUMAN_ONLY listing,
 must be submitted by the human account holder).
 
@@ -34,21 +33,12 @@ https://github.com/prettyboyvic/solana-yield-adapter-standard
 
 This section supersedes older Kamino status notes below.
 
-Latest pushed `origin/main` commits checked before the local fork-evidence patch:
+Latest pushed `origin/main` commits checked before the local Jupiter patch:
 
 ```text
-53bd145 docs: update Kamino current value submission status
-1a0dc0f test: add Kamino current value oracle fixture
-82a2c2b feat: add Kamino current value decoder
-15cfb00 feat: add Kamino full-pool withdraw CPI path
-c551674 feat: add Kamino deposit CPI path
-6af5809 chore: register devnet reference adapters
-9272dca docs: update Kamino init CPI status
-1b490f0 feat: add Kamino init CPI entrypoint
-836501a feat: add Kamino CPI account layout gate scaffolding
-4a8dfe3 test: validate Kamino CPI remaining account fixtures
-e00074f test: add Kamino CPI account plan fixture checks
-646957e chore: add Kamino CPI account plan fixture
+415c0f6 docs: record MarginFi mainnet fork evidence
+368d910 test: add MarginFi live fork account map preflight
+186bfb5 test: add MarginFi current value fixture proof
 ```
 
 Kamino implemented scope:
@@ -263,6 +253,67 @@ Notes captured from the fork:
   after ROUNDTRIP_OK when the validator is intentionally killed.
 ```
 
+## Jupiter LP live mainnet-fork roundtrip (2026-06-05)
+
+Scoped to the direct reference-adapter runner
+`scripts/jupiter-mainnet-fork-roundtrip.mjs`. This is not a dispatcher/full-SDK
+claim and not an all-five-adapter pass. `CPI_IMPLEMENTED` remains `false`.
+
+```text
+PASS / ROUNDTRIP_OK
+forkSlot=424386975
+sequence=initialize_adapter -> jupiter_deposit -> current_value_cpi
+         -> jupiter_withdraw
+mutationPath=Jupiter Perps addLiquidity2 / removeLiquidity2 CPI
+accountShape=14 formal IDL accounts + 5 pool custodies + 5 Doves AG feeds
+currentValue=floor(adapterJlpAmount * pool.aumUsd / jlpMintSupply)
+```
+
+Fork transaction evidence:
+
+| Step | Signature | CU |
+|---|---|---:|
+| initializeAdapter | `u5mfHNhiFCGMTKTdtAsNTKPiWfb7rym4RfkeuPS3afKoJ5vwEY4MYVNzuW3EkKcL8LGVT3NRoHfzKPzNbVKiCim` | 19,969 |
+| deposit | `3aUYDeSYFTc9okRqq6MZEC2CeyaNxiCg7x63G3tQmdbA2QtirY3p64uxXgUtmjUEALgBDwVSntUcgghRN3VR4EHX` | 183,687 |
+| currentValue | `3W6PEmN8gQ3YZvdMTKniQHdLMxo94nsCbJXhHLTjmSvsD5FjS6oUbyg15QoRvzsyeNVWQDYfG3dEQWHXNFkqeMGh` | 23,023 |
+| withdraw | `24BSFHeQD4sohkeyG3yGKEZM9ympGWAWS7LUwM9Uz5SfoPLYxNsv7Ug5Dki1NtgxkyPqvnoos4BK13qqea3tzt4F` | 166,400 |
+
+Fork account evidence:
+
+```text
+user=DhBhMpAUroCVS1QfMyWfAB8BPtLrcPtHtf6zN77pYjLF
+state=2H7csAxpJp6hQB1hRArM6TrDARxBjWk9VeQ37B7UG4RQ
+position=o7BQjLdmcMxTykLZA1HVox84q1KRn7d1aMTC4BMsNT4
+adapterUsdc=7AsBiXfWPQMaDyeyLk14Sm79SxjgpPSVY4CfT6L9teuY
+adapterJlp=HvFgkLJ5skY2rgB6YZWmmiQtpRspXTa65nkNQvsVj4B2
+depositAmount=1000000
+```
+
+Fork deltas:
+
+| Field | Before | After deposit | After current_value | After withdraw |
+|---|---:|---:|---:|---:|
+| user USDC | 2,000,000 | 1,000,000 | 1,000,000 | 1,995,637 |
+| adapter JLP | 0 | 295,604 | 295,604 | 0 |
+| JLP mint supply | 224,196,300,886,080 | 224,196,301,181,684 | 224,196,301,181,684 | 224,196,300,886,080 |
+| adapter totalAssets | 0 | 997,522 | 997,522 | 0 |
+| adapter totalShares | 0 | 295,604 | 295,604 | 0 |
+| position shares | - | 295,604 | 295,604 | 0 |
+
+`redeemedToUser=995637`, `finalUserDeltaVsStart=-4363`.
+
+Fork-specific oracle caveat:
+
+- Jupiter's Doves AG freshness window is shorter than Windows validator
+  load/JIT time, and the warped local clock later jumps forward.
+- The runner loads all five Doves AG accounts from raw mainnet bytes and changes
+  only the `i64 publish_time` at offset `177`, forwarding it by `60000` seconds.
+- Price values, account owners, and all other bytes remain unchanged. Every
+  observed and forwarded timestamp is recorded in
+  `target/jupiter-mainnet-fork-fixtures/evidence.json`.
+- This proves the CPI/account/value path on a mainnet fork, but is explicitly not
+  claimed as an untouched-oracle snapshot.
+
 Generic CPI route audit:
 
 - Generic non-Kamino `deposit_cpi`, `withdraw_cpi`, and `current_value_cpi` still
@@ -274,8 +325,11 @@ Generic CPI route audit:
 - MarginFi-specific real paths now present and live-fork verified (2026-06-05):
   `marginfi_init`, `marginfi_deposit`, full `marginfi_withdraw`, and read-only
   real `current_value_cpi`.
-- Jupiter LP, Maple Syrup, and Drift Insurance Fund still do not have real
-  protocol CPI implementations. Their generic CPI routes remain loud-fail only.
+- Jupiter-specific real paths now present and live-fork verified (2026-06-05):
+  `jupiter_deposit`, full `jupiter_withdraw`, and read-only real
+  `current_value_cpi`.
+- Maple Syrup and Drift Insurance Fund still do not have real protocol mutation
+  paths. Their generic CPI routes remain loud-fail only.
 - Maple Syrup remains a Chainlink CCIP / token-route integration, not a native
   lending CPI path.
 
@@ -291,8 +345,8 @@ Final bounty submission checklist:
   expecting the adapter's live `current_value_cpi` to read it.
 - Capture fork slot, tx signatures, program logs, compute budget, user/vault USDC
   deltas, obligation collateral deltas, and adapter state/position fields.
-- Implement and verify the remaining four protocol integrations before claiming
-  all five adapters pass.
+- Implement and verify Maple Syrup and Drift Insurance Fund before claiming all
+  five adapters pass.
 - Submit only from the human Superteam account holder, after confirming regional
   eligibility and the listing is still open.
 
@@ -427,7 +481,8 @@ whose receipt/account state is derived on-machine rather than a static SPL mint.
 
 Note: devnet deployment and registry registration are complete. All-adapter
 CPI/live mainnet-fork roundtrip validation is still not claimed as complete;
-only the scoped Kamino USDC direct-reference-adapter fork pass is recorded.
+scoped Kamino USDC, MarginFi USDC, and Jupiter LP direct-reference-adapter fork
+passes are recorded.
 
 ## Known Toolchain Issue
 
@@ -494,16 +549,20 @@ Runnable now:
   DONE; evidence is recorded above.
 - Kamino USDC direct-reference-adapter live mainnet-fork roundtrip passes at slot
   `424290277` for init -> deposit -> current_value -> full-pool withdraw.
+- MarginFi USDC and Jupiter LP direct-reference-adapter live mainnet-fork
+  roundtrips also pass; Jupiter's evidence explicitly records its forwarded
+  Doves AG publish-time fixtures.
 - Turnkey scripts remain available: `scripts/devnet-deploy.ps1`,
   `scripts/devnet-register-reference-adapters.ts`, `scripts/run-mainnet-fork.mjs`,
-  and `scripts/kamino-mainnet-fork-roundtrip.mjs`.
+  `scripts/kamino-mainnet-fork-roundtrip.mjs`,
+  `scripts/marginfi-mainnet-fork-roundtrip.mjs`, and
+  `scripts/jupiter-mainnet-fork-roundtrip.mjs`.
 
 Still open:
-- Run live mainnet-fork roundtrips for MarginFi, Jupiter LP, Maple Syrup, and
-  Drift Insurance Fund after their real integrations are implemented.
+- Implement and run live mainnet-fork roundtrips for Maple Syrup and Drift
+  Insurance Fund.
 - Kamino partial-withdraw collateral conversion remains intentionally guarded;
   the recorded Kamino pass is full-pool withdraw only.
-- Finish MarginFi / Jupiter / Maple / Drift real CPI paths.
 
 ## Adapter interface prepared for real CPI (2026-06-04)
 
@@ -539,8 +598,8 @@ Kamino real CPI now has one scoped live mainnet-fork pass for
 `kamino_deposit`, real `current_value_cpi`, and full-pool `kamino_withdraw`.
 The current-value decoder also matches the official SDK oracle fixture with
 `diffLamports=0`. Partial-withdraw collateral conversion remains intentionally
-guarded, and MarginFi / Jupiter / Maple / Drift real CPI paths are still open.
-This is still NOT a full live-CPI bounty submission.
+guarded; Maple and Drift real mutation paths are still open. This is still NOT a
+full live-CPI bounty submission.
 
 ## Kamino USDC CPI status (2026-06-04): init + deposit + full-pool withdraw + value decoder
 
@@ -625,9 +684,7 @@ Still required before a final bounty-grade submission (all on the Windows machin
 2. Devnet registry DONE — registry initialized and all five reference adapter configs registered.
 3. Maple addresses are resolved (mint/router/pool/oracle wired). The Maple integration
    path is a Chainlink CCIP / token route, not a lending CPI — the live flow is still TODO.
-4. Finish and compile the remaining real protocol integrations for MarginFi,
-   Jupiter LP, Maple Syrup (CCIP route), and Drift Insurance Fund. Kamino init,
-   deposit, full-pool withdraw, current-value decoding, SDK oracle evidence, and
-   one scoped live mainnet-fork roundtrip are recorded, but partial-withdraw
-   collateral conversion remains intentionally guarded.
+4. Finish and compile Maple Syrup (CCIP route) and Drift Insurance Fund. Scoped
+   Kamino, MarginFi, and Jupiter LP mainnet-fork roundtrips are recorded, but
+   Kamino partial-withdraw collateral conversion remains intentionally guarded.
 5. Run all five mainnet-fork tests via `npm run fork:run` flow and paste tx/log evidence here.

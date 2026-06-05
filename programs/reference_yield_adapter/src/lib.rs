@@ -250,6 +250,9 @@ pub mod reference_yield_adapter {
         if adapter_id == MARGINFI_USDC_ADAPTER_ID {
             return marginfi_current_value(ctx, adapter_id);
         }
+        if adapter_id == JUPITER_LP_ADAPTER_ID {
+            return jupiter_current_value(ctx, adapter_id);
+        }
         reject_unimplemented_cpi(ctx.remaining_accounts.len())
     }
 
@@ -857,6 +860,220 @@ pub mod reference_yield_adapter {
 
         Ok(())
     }
+
+    /// Jupiter Perps USDC -> JLP real-CPI deposit.
+    ///
+    /// The user first funds the state-PDA-owned USDC ATA. Jupiter
+    /// `addLiquidity2` then mints JLP into the state-PDA-owned JLP ATA. Adapter
+    /// shares are the actual JLP lamports minted, not a simulated quote.
+    pub fn jupiter_deposit<'info>(
+        ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+        adapter_id: [u8; 32],
+        amount: u64,
+        min_shares_out: u64,
+    ) -> Result<()> {
+        require!(amount > 0, AdapterError::InvalidAmount);
+        guard_jupiter_cpi_route(&ctx, adapter_id)?;
+        validate_jupiter_mutation_accounts(&ctx)?;
+
+        let accounts = ctx.remaining_accounts;
+        let jlp_before = read_jupiter_receipt_account(&accounts[2], ctx.accounts.state.key())?;
+        require!(
+            jlp_before == ctx.accounts.state.total_shares,
+            AdapterError::JupiterReceiptBalanceMismatch
+        );
+
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.user_underlying.to_account_info(),
+                    to: ctx.accounts.adapter_underlying.to_account_info(),
+                    authority: ctx.accounts.user.to_account_info(),
+                },
+            ),
+            amount,
+        )?;
+
+        let bump = ctx.accounts.state.bump;
+        let signer_seeds: &[&[u8]] =
+            &[ADAPTER_SEED, adapter_id.as_ref(), core::slice::from_ref(&bump)];
+        let signer = &[signer_seeds];
+        let cpi_layout = jupiter_liquidity_cpi_layout();
+        invoke_signed(
+            &Instruction {
+                program_id: JUPITER_PERPS_PROGRAM_ID,
+                accounts: remaining_accounts_to_metas(accounts, &cpi_layout),
+                data: jupiter_add_liquidity2_instruction_data(amount, min_shares_out),
+            },
+            accounts,
+            signer,
+        )?;
+
+        let jlp_after = read_jupiter_receipt_account(&accounts[2], ctx.accounts.state.key())?;
+        let shares_out = jlp_after
+            .checked_sub(jlp_before)
+            .ok_or(AdapterError::MathOverflow)?;
+        require!(shares_out > 0, AdapterError::SlippageExceeded);
+        require!(shares_out >= min_shares_out, AdapterError::SlippageExceeded);
+        let total_assets = jupiter_current_value_from_account_infos(
+            &accounts[5],
+            &accounts[10],
+            &accounts[2],
+            ctx.accounts.state.key(),
+        )?;
+
+        let (_, position_bump) = Pubkey::find_program_address(
+            &[
+                POSITION_SEED,
+                adapter_id.as_ref(),
+                ctx.accounts.user.key().as_ref(),
+            ],
+            ctx.program_id,
+        );
+        initialize_position_if_needed(
+            &mut ctx.accounts.position,
+            ctx.accounts.user.key(),
+            adapter_id,
+            position_bump,
+        );
+        ctx.accounts.position.shares = ctx
+            .accounts
+            .position
+            .shares
+            .checked_add(shares_out)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.position.principal_assets = ctx
+            .accounts
+            .position
+            .principal_assets
+            .checked_add(amount)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.state.total_shares = jlp_after;
+        ctx.accounts.state.total_assets = total_assets;
+        ctx.accounts.state.last_update_slot = Clock::get()?.slot;
+
+        update_position_value(&ctx.accounts.state, &mut ctx.accounts.position)?;
+        emit!(AdapterDeposit {
+            adapter_id,
+            user: ctx.accounts.user.key(),
+            amount,
+            shares_out,
+            position_value: ctx.accounts.position.last_value_assets,
+        });
+        Ok(())
+    }
+
+    /// Jupiter Perps JLP -> USDC real-CPI withdraw.
+    ///
+    /// `shares` is the exact JLP amount burned by `removeLiquidity2`.
+    /// `min_assets_out` is passed directly to Jupiter and checked again against
+    /// the measured state-PDA USDC vault delta before funds reach the user.
+    pub fn jupiter_withdraw<'info>(
+        ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+        adapter_id: [u8; 32],
+        shares: u64,
+        min_assets_out: u64,
+    ) -> Result<()> {
+        require!(shares > 0, AdapterError::InvalidAmount);
+        guard_jupiter_cpi_route(&ctx, adapter_id)?;
+        validate_jupiter_mutation_accounts(&ctx)?;
+        require_keys_eq!(
+            ctx.accounts.position.owner,
+            ctx.accounts.user.key(),
+            AdapterError::Unauthorized
+        );
+        require!(
+            ctx.accounts.position.adapter_id == adapter_id,
+            AdapterError::AdapterMismatch
+        );
+        require!(
+            ctx.accounts.position.shares >= shares,
+            AdapterError::InsufficientShares
+        );
+
+        let accounts = ctx.remaining_accounts;
+        let jlp_before = read_jupiter_receipt_account(&accounts[2], ctx.accounts.state.key())?;
+        require!(
+            jlp_before == ctx.accounts.state.total_shares,
+            AdapterError::JupiterReceiptBalanceMismatch
+        );
+        require!(jlp_before >= shares, AdapterError::InsufficientShares);
+        let vault_before = ctx.accounts.adapter_underlying.amount;
+
+        let bump = ctx.accounts.state.bump;
+        let signer_seeds: &[&[u8]] =
+            &[ADAPTER_SEED, adapter_id.as_ref(), core::slice::from_ref(&bump)];
+        let signer = &[signer_seeds];
+        let cpi_layout = jupiter_liquidity_cpi_layout();
+        invoke_signed(
+            &Instruction {
+                program_id: JUPITER_PERPS_PROGRAM_ID,
+                accounts: remaining_accounts_to_metas(accounts, &cpi_layout),
+                data: jupiter_remove_liquidity2_instruction_data(shares, min_assets_out),
+            },
+            accounts,
+            signer,
+        )?;
+
+        ctx.accounts.adapter_underlying.reload()?;
+        let redeemed = ctx
+            .accounts
+            .adapter_underlying
+            .amount
+            .checked_sub(vault_before)
+            .ok_or(AdapterError::MathOverflow)?;
+        require!(redeemed > 0, AdapterError::SlippageExceeded);
+        require!(redeemed >= min_assets_out, AdapterError::SlippageExceeded);
+
+        let jlp_after = read_jupiter_receipt_account(&accounts[2], ctx.accounts.state.key())?;
+        require!(
+            jlp_before
+                .checked_sub(jlp_after)
+                .ok_or(AdapterError::MathOverflow)?
+                == shares,
+            AdapterError::JupiterReceiptBalanceMismatch
+        );
+        let total_assets = jupiter_current_value_from_account_infos(
+            &accounts[5],
+            &accounts[10],
+            &accounts[2],
+            ctx.accounts.state.key(),
+        )?;
+
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.adapter_underlying.to_account_info(),
+                    to: ctx.accounts.user_underlying.to_account_info(),
+                    authority: ctx.accounts.state.to_account_info(),
+                },
+                signer,
+            ),
+            redeemed,
+        )?;
+
+        ctx.accounts.position.shares = ctx
+            .accounts
+            .position
+            .shares
+            .checked_sub(shares)
+            .ok_or(AdapterError::MathOverflow)?;
+        ctx.accounts.state.total_shares = jlp_after;
+        ctx.accounts.state.total_assets = total_assets;
+        ctx.accounts.state.last_update_slot = Clock::get()?.slot;
+
+        update_position_value(&ctx.accounts.state, &mut ctx.accounts.position)?;
+        emit!(AdapterWithdraw {
+            adapter_id,
+            user: ctx.accounts.user.key(),
+            shares,
+            assets_out: redeemed,
+            position_value: ctx.accounts.position.last_value_assets,
+        });
+        Ok(())
+    }
 }
 
 /// Routing decision for the real-CPI path. Intentionally has NO variant that
@@ -1098,6 +1315,157 @@ fn guard_marginfi_current_value_route<'info>(
             &ctx.accounts.token_program.key(),
             &ctx.accounts.state.underlying_mint
         ),
+        AdapterError::AdapterMismatch
+    );
+    Ok(())
+}
+
+fn guard_jupiter_cpi_route<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+    adapter_id: [u8; 32],
+) -> Result<()> {
+    guard_cpi_route(ctx, adapter_id)?;
+    require!(
+        adapter_id == JUPITER_LP_ADAPTER_ID,
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        ctx.accounts.state.protocol == ProtocolKind::JupiterLp as u8,
+        AdapterError::InvalidProtocol
+    );
+    require_keys_eq!(
+        ctx.accounts.state.protocol_market,
+        JUPITER_POOL,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.state.underlying_mint,
+        USDC_MINT,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.state.receipt_mint,
+        JLP_MINT,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.user_underlying.mint,
+        USDC_MINT,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.mint,
+        USDC_MINT,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.owner,
+        ctx.accounts.state.key(),
+        AdapterError::Unauthorized
+    );
+    require_keys_eq!(
+        ctx.accounts.adapter_underlying.key(),
+        adapter_underlying_vault_pda(
+            &ctx.accounts.state.key(),
+            &ctx.accounts.token_program.key(),
+            &USDC_MINT
+        ),
+        AdapterError::AdapterMismatch
+    );
+    Ok(())
+}
+
+fn validate_jupiter_mutation_accounts<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+) -> Result<()> {
+    let accounts = ctx.remaining_accounts;
+    require!(
+        account_info_layout_matches(
+            &jupiter_liquidity_outer_account_layout(),
+            &remaining_accounts_to_specs(accounts)
+        ),
+        AdapterError::MissingCpiAccounts
+    );
+
+    let mut expected = vec![
+        ctx.accounts.state.key(),
+        ctx.accounts.adapter_underlying.key(),
+        adapter_underlying_vault_pda(
+            &ctx.accounts.state.key(),
+            &ctx.accounts.token_program.key(),
+            &JLP_MINT,
+        ),
+        JUPITER_TRANSFER_AUTHORITY,
+        JUPITER_PERPETUALS,
+        JUPITER_POOL,
+        JUPITER_USDC_CUSTODY,
+        JUPITER_USDC_DOVES_AG_PRICE_ACCOUNT,
+        JUPITER_USDC_PYTHNET_PRICE_ACCOUNT,
+        JUPITER_USDC_CUSTODY_TOKEN_ACCOUNT,
+        JLP_MINT,
+        ctx.accounts.token_program.key(),
+        JUPITER_EVENT_AUTHORITY,
+        JUPITER_PERPS_PROGRAM_ID,
+    ];
+    expected.extend(JUPITER_POOL_CUSTODIES);
+    expected.extend(JUPITER_POOL_DOVES_AG_PRICE_ACCOUNTS);
+    for (account, expected_key) in accounts.iter().zip(expected) {
+        require_keys_eq!(account.key(), expected_key, AdapterError::AdapterMismatch);
+    }
+
+    for index in [3usize, 4, 5, 6, 14, 15, 16, 17, 18] {
+        require!(
+            accounts[index].owner == &JUPITER_PERPS_PROGRAM_ID,
+            AdapterError::AdapterMismatch
+        );
+    }
+    for index in [7usize, 19, 20, 21, 22, 23] {
+        require!(
+            accounts[index].owner == &JUPITER_DOVES_PROGRAM_ID,
+            AdapterError::AdapterMismatch
+        );
+    }
+    for index in [1usize, 2, 9, 10] {
+        require_keys_eq!(
+            *accounts[index].owner,
+            ctx.accounts.token_program.key(),
+            AdapterError::AdapterMismatch
+        );
+    }
+    require!(accounts[11].executable, AdapterError::MissingCpiAccounts);
+    require!(accounts[13].executable, AdapterError::MissingCpiAccounts);
+    read_jupiter_receipt_account(&accounts[2], ctx.accounts.state.key())?;
+    Ok(())
+}
+
+fn validate_jupiter_current_value_accounts<'info>(
+    ctx: &Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+) -> Result<()> {
+    let accounts = ctx.remaining_accounts;
+    require!(accounts.len() == 3, AdapterError::MissingCpiAccounts);
+    require_keys_eq!(accounts[0].key(), JUPITER_POOL, AdapterError::AdapterMismatch);
+    require_keys_eq!(accounts[1].key(), JLP_MINT, AdapterError::AdapterMismatch);
+    require_keys_eq!(
+        accounts[2].key(),
+        adapter_underlying_vault_pda(
+            &ctx.accounts.state.key(),
+            &ctx.accounts.token_program.key(),
+            &JLP_MINT,
+        ),
+        AdapterError::AdapterMismatch
+    );
+    require!(
+        accounts[0].owner == &JUPITER_PERPS_PROGRAM_ID,
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        *accounts[1].owner,
+        ctx.accounts.token_program.key(),
+        AdapterError::AdapterMismatch
+    );
+    require_keys_eq!(
+        *accounts[2].owner,
+        ctx.accounts.token_program.key(),
         AdapterError::AdapterMismatch
     );
     Ok(())
@@ -1609,6 +1977,58 @@ fn marginfi_withdraw_outer_account_layout() -> [AccountLayoutSpec; 10] {
     layout
 }
 
+/// Jupiter Perps `addLiquidity2` / `removeLiquidity2` account layout.
+///
+/// Both instructions use the same flags and differ only in the name of account
+/// slot 1 (`fundingAccount` vs `receivingAccount`).
+pub const JUPITER_LIQUIDITY_V2_LAYOUT: [AccountLayoutSpec; 14] = [
+    spec(true, false),  // owner (state PDA)
+    spec(false, true),  // fundingAccount / receivingAccount
+    spec(false, true),  // lpTokenAccount
+    spec(false, false), // transferAuthority
+    spec(false, false), // perpetuals
+    spec(false, true),  // pool
+    spec(false, true),  // custody
+    spec(false, false), // custodyDovesPriceAccount
+    spec(false, false), // custodyPythnetPriceAccount
+    spec(false, true),  // custodyTokenAccount
+    spec(false, true),  // lpTokenMint
+    spec(false, false), // tokenProgram
+    spec(false, false), // eventAuthority
+    spec(false, false), // program
+];
+
+pub const JUPITER_AUM_REMAINING_LAYOUT: [AccountLayoutSpec; 10] = [
+    spec(false, false), // custody 0
+    spec(false, false), // custody 1
+    spec(false, false), // custody 2
+    spec(false, false), // custody 3 (USDC; privilege-promoted by slot 6)
+    spec(false, false), // custody 4
+    spec(false, false), // Doves AG price account 0
+    spec(false, false), // Doves AG price account 1
+    spec(false, false), // Doves AG price account 2
+    spec(false, false), // Doves AG price account 3
+    spec(false, false), // Doves AG price account 4
+];
+
+fn jupiter_liquidity_cpi_layout() -> Vec<AccountLayoutSpec> {
+    [
+        JUPITER_LIQUIDITY_V2_LAYOUT.as_slice(),
+        JUPITER_AUM_REMAINING_LAYOUT.as_slice(),
+    ]
+    .concat()
+}
+
+fn jupiter_liquidity_outer_account_layout() -> Vec<AccountLayoutSpec> {
+    let mut layout = jupiter_liquidity_cpi_layout();
+    // The state PDA is writable in AdapterCpiRoute for local accounting. The
+    // generated inner Jupiter owner meta remains readonly + PDA-signed. The
+    // repeated USDC custody is privilege-promoted by writable IDL slot 6.
+    layout[0].is_writable = true;
+    layout[17].is_writable = true;
+    layout
+}
+
 /// klend `depositReserveLiquidityAndObligationCollateralV2` account layout (17 accounts).
 pub const KAMINO_DEPOSIT_V2_LAYOUT: [AccountLayoutSpec; 17] = [
     spec(true, true),   // owner
@@ -1723,6 +2143,216 @@ pub const MARGINFI_USDC_LIQUIDITY_VAULT: Pubkey =
     anchor_lang::solana_program::pubkey!("7jaiZR5Sk8hdYN9MxTpczTcwbWpb5WEoxSANuUwveuat");
 pub const MARGINFI_USDC_LIQUIDITY_VAULT_AUTHORITY: Pubkey =
     anchor_lang::solana_program::pubkey!("3uxNepDbmkDNq6JhRja5Z8QwbTrfmkKP8AKZV5chYDGG");
+pub const JUPITER_LP_ADAPTER_ID: [u8; 32] = [
+    0xe1, 0x64, 0x47, 0x4b, 0xda, 0x14, 0x9e, 0x05, 0xfb, 0x6f, 0x7f, 0x8a, 0xed, 0x1c, 0xe5, 0x27,
+    0x4a, 0x82, 0x33, 0x2c, 0x3a, 0x4b, 0x9e, 0x4f, 0x42, 0x80, 0x65, 0xb5, 0x17, 0xce, 0xf9, 0x6a,
+];
+pub const JUPITER_PERPS_PROGRAM_ID: Pubkey =
+    anchor_lang::solana_program::pubkey!("PERPHjGBqRHArX4DySjwM6UJHiR3sWAatqfdBS2qQJu");
+pub const JUPITER_DOVES_PROGRAM_ID: Pubkey =
+    anchor_lang::solana_program::pubkey!("DoVEsk76QybCEHQGzkvYPWLQu9gzNoZZZt3TPiL597e");
+pub const JLP_MINT: Pubkey =
+    anchor_lang::solana_program::pubkey!("27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4");
+pub const JUPITER_PERPETUALS: Pubkey =
+    anchor_lang::solana_program::pubkey!("H4ND9aYttUVLFmNypZqLjZ52FYiGvdEB45GmwNoKEjTj");
+pub const JUPITER_TRANSFER_AUTHORITY: Pubkey =
+    anchor_lang::solana_program::pubkey!("AVzP2GeRmqGphJsMxWoqjpUifPpCret7LqWhD8NWQK49");
+pub const JUPITER_POOL: Pubkey =
+    anchor_lang::solana_program::pubkey!("5BUwFW4nRbftYTDMbgxykoFWqWHPzahFSNAaaaJtVKsq");
+pub const JUPITER_USDC_CUSTODY: Pubkey =
+    anchor_lang::solana_program::pubkey!("G18jKKXQwBbrHeiK3C9MRXhkHsLHf7XgCSisykV46EZa");
+pub const JUPITER_USDC_CUSTODY_TOKEN_ACCOUNT: Pubkey =
+    anchor_lang::solana_program::pubkey!("WzWUoCmtVv7eqAbU3BfKPU3fhLP6CXR8NCJH78UK9VS");
+pub const JUPITER_USDC_DOVES_AG_PRICE_ACCOUNT: Pubkey =
+    anchor_lang::solana_program::pubkey!("6Jp2xZUTWdDD2ZyUPRzeMdc6AFQ5K3pFgZxk2EijfjnM");
+pub const JUPITER_USDC_PYTHNET_PRICE_ACCOUNT: Pubkey =
+    anchor_lang::solana_program::pubkey!("Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX");
+pub const JUPITER_EVENT_AUTHORITY: Pubkey =
+    anchor_lang::solana_program::pubkey!("37hJBDnntwqhGbK7L6M1bLyvccj4u55CCUiLPdYkiqBN");
+pub const JUPITER_POOL_CUSTODIES: [Pubkey; 5] = [
+    anchor_lang::solana_program::pubkey!("7xS2gz2bTp3fwCC7knJvUWTEU9Tycczu6VhJYKgi1wdz"),
+    anchor_lang::solana_program::pubkey!("AQCGyheWPLeo6Qp9WpYS9m3Qj479t7R636N9ey1rEjEn"),
+    anchor_lang::solana_program::pubkey!("5Pv3gM9JrFFH883SWAhvJC9RPYmo8UNxuFtv5bMMALkm"),
+    JUPITER_USDC_CUSTODY,
+    anchor_lang::solana_program::pubkey!("4vkNeXiYEUizLdrpdPS1eC2mccyM4NUPRtERrk6ZETkk"),
+];
+pub const JUPITER_POOL_DOVES_AG_PRICE_ACCOUNTS: [Pubkey; 5] = [
+    anchor_lang::solana_program::pubkey!("FYq2BWQ1V5P1WFBqr3qB2Kb5yHVvSv7upzKodgQE5zXh"),
+    anchor_lang::solana_program::pubkey!("AFZnHPzy4mvVCffrVwhewHbFc93uTHvDSFrVH7GtfXF1"),
+    anchor_lang::solana_program::pubkey!("hUqAT1KQ7eW1i6Csp9CXYtpPfSAvi835V7wKi5fRfmC"),
+    anchor_lang::solana_program::pubkey!("6Jp2xZUTWdDD2ZyUPRzeMdc6AFQ5K3pFgZxk2EijfjnM"),
+    anchor_lang::solana_program::pubkey!("Fgc93D641F8N2d1xLjQ4jmShuD3GE3BsCXA56KBQbF5u"),
+];
+
+// ---------------------------------------------------------------------------
+// Jupiter Perps JLP on-chain account decoding.
+//
+// The deployed Anchor IDL defines Pool as:
+// discriminator + string name + vec<Pubkey> custodies + u128 aumUsd + ...
+// JLP and the adapter receipt vault use the canonical SPL Token mint/account
+// layouts. The resulting value is in USDC lamports because both pool.aumUsd and
+// JLP supply use 6 decimals.
+const JUPITER_POOL_DISCRIMINATOR: [u8; 8] = [241, 154, 109, 4, 17, 177, 109, 188];
+const JUPITER_POOL_NAME: &[u8] = b"Pool";
+const JUPITER_MAX_POOL_NAME_LEN: usize = 32;
+const JUPITER_MAX_CUSTODIES: usize = 16;
+const SPL_MINT_SUPPLY_OFF: usize = 36;
+const SPL_MINT_DECIMALS_OFF: usize = 44;
+const SPL_TOKEN_ACCOUNT_MINT_OFF: usize = 0;
+const SPL_TOKEN_ACCOUNT_OWNER_OFF: usize = 32;
+const SPL_TOKEN_ACCOUNT_AMOUNT_OFF: usize = 64;
+
+fn read_jupiter_u32_le(data: &[u8], offset: usize) -> Result<u32> {
+    let bytes = data
+        .get(offset..offset.checked_add(4).ok_or(AdapterError::JupiterAccountDataTooShort)?)
+        .ok_or(AdapterError::JupiterAccountDataTooShort)?;
+    Ok(u32::from_le_bytes(
+        bytes
+            .try_into()
+            .map_err(|_| AdapterError::JupiterAccountDataTooShort)?,
+    ))
+}
+
+fn read_jupiter_u64_le(data: &[u8], offset: usize) -> Result<u64> {
+    let bytes = data
+        .get(offset..offset.checked_add(8).ok_or(AdapterError::JupiterAccountDataTooShort)?)
+        .ok_or(AdapterError::JupiterAccountDataTooShort)?;
+    Ok(u64::from_le_bytes(
+        bytes
+            .try_into()
+            .map_err(|_| AdapterError::JupiterAccountDataTooShort)?,
+    ))
+}
+
+fn read_jupiter_u128_le(data: &[u8], offset: usize) -> Result<u128> {
+    let bytes = data
+        .get(offset..offset.checked_add(16).ok_or(AdapterError::JupiterAccountDataTooShort)?)
+        .ok_or(AdapterError::JupiterAccountDataTooShort)?;
+    Ok(u128::from_le_bytes(
+        bytes
+            .try_into()
+            .map_err(|_| AdapterError::JupiterAccountDataTooShort)?,
+    ))
+}
+
+pub fn read_jupiter_pool_aum_usd(data: &[u8]) -> Result<u128> {
+    require!(
+        data.get(..8) == Some(JUPITER_POOL_DISCRIMINATOR.as_slice()),
+        AdapterError::JupiterBadDiscriminator
+    );
+    let name_len = read_jupiter_u32_le(data, 8)? as usize;
+    require!(
+        name_len <= JUPITER_MAX_POOL_NAME_LEN,
+        AdapterError::JupiterAccountDataTooShort
+    );
+    let name_start = 12usize;
+    let name_end = name_start
+        .checked_add(name_len)
+        .ok_or(AdapterError::JupiterAccountDataTooShort)?;
+    require!(
+        data.get(name_start..name_end) == Some(JUPITER_POOL_NAME),
+        AdapterError::JupiterBadDiscriminator
+    );
+
+    let custody_count = read_jupiter_u32_le(data, name_end)? as usize;
+    require!(
+        custody_count > 0 && custody_count <= JUPITER_MAX_CUSTODIES,
+        AdapterError::JupiterAccountDataTooShort
+    );
+    let custodies_start = name_end
+        .checked_add(4)
+        .ok_or(AdapterError::JupiterAccountDataTooShort)?;
+    let custodies_end = custodies_start
+        .checked_add(
+            custody_count
+                .checked_mul(32)
+                .ok_or(AdapterError::JupiterAccountDataTooShort)?,
+        )
+        .ok_or(AdapterError::JupiterAccountDataTooShort)?;
+    let custodies = data
+        .get(custodies_start..custodies_end)
+        .ok_or(AdapterError::JupiterAccountDataTooShort)?;
+    require!(
+        custodies
+            .chunks_exact(32)
+            .any(|custody| custody == JUPITER_USDC_CUSTODY.as_ref()),
+        AdapterError::JupiterPoolMissingUsdcCustody
+    );
+    read_jupiter_u128_le(data, custodies_end)
+}
+
+pub fn read_spl_mint_supply(data: &[u8], expected_decimals: u8) -> Result<u64> {
+    require!(
+        data.len() > SPL_MINT_DECIMALS_OFF,
+        AdapterError::JupiterAccountDataTooShort
+    );
+    require!(
+        data[SPL_MINT_DECIMALS_OFF] == expected_decimals,
+        AdapterError::JupiterReceiptMintMismatch
+    );
+    read_jupiter_u64_le(data, SPL_MINT_SUPPLY_OFF)
+}
+
+pub fn read_spl_token_account_amount(
+    data: &[u8],
+    expected_mint: Pubkey,
+    expected_owner: Pubkey,
+) -> Result<u64> {
+    let mint = data
+        .get(SPL_TOKEN_ACCOUNT_MINT_OFF..SPL_TOKEN_ACCOUNT_MINT_OFF + 32)
+        .ok_or(AdapterError::JupiterAccountDataTooShort)?;
+    require!(
+        mint == expected_mint.as_ref(),
+        AdapterError::JupiterReceiptMintMismatch
+    );
+    let owner = data
+        .get(SPL_TOKEN_ACCOUNT_OWNER_OFF..SPL_TOKEN_ACCOUNT_OWNER_OFF + 32)
+        .ok_or(AdapterError::JupiterAccountDataTooShort)?;
+    require!(
+        owner == expected_owner.as_ref(),
+        AdapterError::JupiterReceiptOwnerMismatch
+    );
+    read_jupiter_u64_le(data, SPL_TOKEN_ACCOUNT_AMOUNT_OFF)
+}
+
+pub fn jupiter_jlp_to_assets(jlp_amount: u64, aum_usd: u128, jlp_supply: u64) -> Result<u64> {
+    require!(jlp_supply > 0, AdapterError::JupiterZeroJlpSupply);
+    let assets = (jlp_amount as u128)
+        .checked_mul(aum_usd)
+        .ok_or(AdapterError::MathOverflow)?
+        .checked_div(jlp_supply as u128)
+        .ok_or(AdapterError::MathOverflow)?;
+    u64::try_from(assets).map_err(|_| AdapterError::MathOverflow.into())
+}
+
+pub fn jupiter_current_value_from_data(
+    pool_data: &[u8],
+    jlp_mint_data: &[u8],
+    adapter_jlp_data: &[u8],
+    expected_owner: Pubkey,
+) -> Result<u64> {
+    let aum_usd = read_jupiter_pool_aum_usd(pool_data)?;
+    let jlp_supply = read_spl_mint_supply(jlp_mint_data, 6)?;
+    let jlp_amount = read_spl_token_account_amount(adapter_jlp_data, JLP_MINT, expected_owner)?;
+    jupiter_jlp_to_assets(jlp_amount, aum_usd, jlp_supply)
+}
+
+fn read_jupiter_receipt_account(account: &AccountInfo, expected_owner: Pubkey) -> Result<u64> {
+    let data = account.try_borrow_data()?;
+    read_spl_token_account_amount(&data[..], JLP_MINT, expected_owner)
+}
+
+fn jupiter_current_value_from_account_infos(
+    pool: &AccountInfo,
+    jlp_mint: &AccountInfo,
+    adapter_jlp: &AccountInfo,
+    expected_owner: Pubkey,
+) -> Result<u64> {
+    let pool_data = pool.try_borrow_data()?;
+    let mint_data = jlp_mint.try_borrow_data()?;
+    let receipt_data = adapter_jlp.try_borrow_data()?;
+    jupiter_current_value_from_data(&pool_data[..], &mint_data[..], &receipt_data[..], expected_owner)
+}
 
 // ---------------------------------------------------------------------------
 // Kamino (klend) on-chain account decoding.
@@ -1988,6 +2618,42 @@ fn marginfi_current_value<'info>(
     Ok(())
 }
 
+/// Real Jupiter JLP `current_value`: value the state-PDA-owned JLP ATA from the
+/// deployed Perps pool's cached `aumUsd` divided by the live JLP mint supply.
+/// `remaining_accounts = [pool, jlp_mint, adapter_jlp_token_account]`.
+fn jupiter_current_value<'info>(
+    ctx: Context<'_, '_, '_, 'info, AdapterCpiRoute<'info>>,
+    adapter_id: [u8; 32],
+) -> Result<()> {
+    guard_jupiter_cpi_route(&ctx, adapter_id)?;
+    validate_jupiter_current_value_accounts(&ctx)?;
+
+    let accounts = ctx.remaining_accounts;
+    let jlp_amount = read_jupiter_receipt_account(&accounts[2], ctx.accounts.state.key())?;
+    require!(
+        jlp_amount == ctx.accounts.state.total_shares,
+        AdapterError::JupiterReceiptBalanceMismatch
+    );
+    let total_value = jupiter_current_value_from_account_infos(
+        &accounts[0],
+        &accounts[1],
+        &accounts[2],
+        ctx.accounts.state.key(),
+    )?;
+
+    ctx.accounts.state.total_assets = total_value;
+    ctx.accounts.state.last_update_slot = Clock::get()?.slot;
+    update_position_value(&ctx.accounts.state, &mut ctx.accounts.position)?;
+
+    emit!(AdapterValue {
+        adapter_id,
+        user: ctx.accounts.user.key(),
+        shares: ctx.accounts.position.shares,
+        value_assets: ctx.accounts.position.last_value_assets,
+    });
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // MarginFi (mrgn-v2) on-chain account decoding.
 //
@@ -2170,6 +2836,21 @@ fn anchor_sighash(method: &str) -> [u8; 8] {
     let mut out = [0u8; 8];
     out.copy_from_slice(&digest[..8]);
     out
+}
+
+fn jupiter_add_liquidity2_instruction_data(amount: u64, min_shares_out: u64) -> Vec<u8> {
+    let mut data = anchor_sighash("add_liquidity2").to_vec();
+    data.extend_from_slice(&amount.to_le_bytes());
+    data.extend_from_slice(&min_shares_out.to_le_bytes());
+    data.push(0); // tokenAmountPreSwap: Option<u64>::None
+    data
+}
+
+fn jupiter_remove_liquidity2_instruction_data(shares: u64, min_assets_out: u64) -> Vec<u8> {
+    let mut data = anchor_sighash("remove_liquidity2").to_vec();
+    data.extend_from_slice(&shares.to_le_bytes());
+    data.extend_from_slice(&min_assets_out.to_le_bytes());
+    data
 }
 
 fn marginfi_init_account_metas(
@@ -2750,6 +3431,20 @@ pub enum AdapterError {
     MarginfiAuthorityMismatch,
     #[msg("MarginFi account has no active balance for the expected USDC bank")]
     MarginfiNoActiveUsdcBalance,
+    #[msg("Jupiter Pool, JLP mint, or SPL token account data is shorter than expected")]
+    JupiterAccountDataTooShort,
+    #[msg("Jupiter Pool account discriminator or name does not match")]
+    JupiterBadDiscriminator,
+    #[msg("Jupiter Pool does not contain the pinned USDC custody")]
+    JupiterPoolMissingUsdcCustody,
+    #[msg("Jupiter JLP mint or decimals do not match the expected receipt mint")]
+    JupiterReceiptMintMismatch,
+    #[msg("Jupiter JLP token account is not owned by the adapter state PDA")]
+    JupiterReceiptOwnerMismatch,
+    #[msg("Jupiter JLP mint supply is zero")]
+    JupiterZeroJlpSupply,
+    #[msg("Jupiter adapter accounting does not match its JLP token balance")]
+    JupiterReceiptBalanceMismatch,
 }
 
 #[cfg(test)]
@@ -2773,6 +3468,8 @@ mod cpi_route_tests {
         include_str!("../../../packages/sdk/fixtures/kamino-cpi-account-plan.json");
     const MARGINFI_FIXTURE_JSON: &str =
         include_str!("../../../packages/sdk/fixtures/marginfi-cpi-account-plan.json");
+    const JUPITER_FIXTURE_JSON: &str =
+        include_str!("../../../packages/sdk/fixtures/jupiter-cpi-account-plan.json");
 
     fn fixture_layout(section: &str) -> Vec<AccountLayoutSpec> {
         let f: serde_json::Value =
@@ -2817,6 +3514,21 @@ mod cpi_route_tests {
         fixture["plans"]["lending_account_withdraw"].clone()
     }
 
+    fn jupiter_fixture(name: &str) -> serde_json::Value {
+        let fixture: serde_json::Value = serde_json::from_str(JUPITER_FIXTURE_JSON)
+            .expect("valid Jupiter CPI account-plan fixture");
+        fixture["plans"][name].clone()
+    }
+
+    fn jupiter_aum_fixture() -> Vec<serde_json::Value> {
+        let fixture: serde_json::Value = serde_json::from_str(JUPITER_FIXTURE_JSON)
+            .expect("valid Jupiter CPI account-plan fixture");
+        fixture["aumRemainingAccounts"]
+            .as_array()
+            .expect("Jupiter AUM remaining accounts")
+            .clone()
+    }
+
     fn marginfi_init_state() -> AdapterState {
         AdapterState {
             adapter_id: MARGINFI_USDC_ADAPTER_ID,
@@ -2830,6 +3542,24 @@ mod cpi_route_tests {
             total_shares: 0,
             last_update_slot: 0,
             bump: adapter_state_pda(&MARGINFI_USDC_ADAPTER_ID, &crate::ID).1,
+            paused: false,
+            metadata_uri: String::new(),
+        }
+    }
+
+    fn jupiter_state() -> AdapterState {
+        AdapterState {
+            adapter_id: JUPITER_LP_ADAPTER_ID,
+            protocol: ProtocolKind::JupiterLp as u8,
+            authority: Pubkey::new_unique(),
+            underlying_mint: USDC_MINT,
+            receipt_mint: JLP_MINT,
+            protocol_market: JUPITER_POOL,
+            value_oracle: Pubkey::default(),
+            total_assets: 0,
+            total_shares: 0,
+            last_update_slot: 0,
+            bump: adapter_state_pda(&JUPITER_LP_ADAPTER_ID, &crate::ID).1,
             paused: false,
             metadata_uri: String::new(),
         }
@@ -3356,6 +4086,124 @@ mod cpi_route_tests {
     }
 
     #[test]
+    fn jupiter_liquidity_layout_and_discriminators_match_committed_fixture() {
+        for (name, sighash) in [
+            ("addLiquidity2", "add_liquidity2"),
+            ("removeLiquidity2", "remove_liquidity2"),
+        ] {
+            let plan = jupiter_fixture(name);
+            let accounts = plan["accounts"].as_array().expect("Jupiter accounts");
+            let layout = accounts
+                .iter()
+                .map(|account| AccountLayoutSpec {
+                    is_signer: account["isSigner"].as_bool().unwrap_or(false),
+                    is_writable: account["isWritable"].as_bool().unwrap_or(false),
+                })
+                .collect::<Vec<_>>();
+            let discriminator = plan["discriminator"]
+                .as_array()
+                .expect("Jupiter discriminator")
+                .iter()
+                .map(|byte| byte.as_u64().expect("discriminator byte") as u8)
+                .collect::<Vec<_>>();
+            assert_eq!(layout, JUPITER_LIQUIDITY_V2_LAYOUT.to_vec());
+            assert_eq!(discriminator, anchor_sighash(sighash).to_vec());
+        }
+    }
+
+    #[test]
+    fn jupiter_fixture_constants_and_adapter_vaults_match() {
+        let plan = jupiter_fixture("addLiquidity2");
+        let accounts = plan["accounts"].as_array().expect("Jupiter accounts");
+        let keys = accounts
+            .iter()
+            .map(|account| account["pubkey"].as_str().expect("pubkey").to_string())
+            .collect::<Vec<_>>();
+        let (state, _) = adapter_state_pda(&JUPITER_LP_ADAPTER_ID, &crate::ID);
+        assert_eq!(keys[0], state.to_string());
+        assert_eq!(
+            keys[1],
+            adapter_underlying_vault_pda(&state, &anchor_spl::token::ID, &USDC_MINT).to_string()
+        );
+        assert_eq!(
+            keys[2],
+            adapter_underlying_vault_pda(&state, &anchor_spl::token::ID, &JLP_MINT).to_string()
+        );
+        assert_eq!(keys[3], JUPITER_TRANSFER_AUTHORITY.to_string());
+        assert_eq!(keys[4], JUPITER_PERPETUALS.to_string());
+        assert_eq!(keys[5], JUPITER_POOL.to_string());
+        assert_eq!(keys[6], JUPITER_USDC_CUSTODY.to_string());
+        assert_eq!(keys[7], JUPITER_USDC_DOVES_AG_PRICE_ACCOUNT.to_string());
+        assert_eq!(keys[8], JUPITER_USDC_PYTHNET_PRICE_ACCOUNT.to_string());
+        assert_eq!(keys[9], JUPITER_USDC_CUSTODY_TOKEN_ACCOUNT.to_string());
+        assert_eq!(keys[10], JLP_MINT.to_string());
+        assert_eq!(keys[12], JUPITER_EVENT_AUTHORITY.to_string());
+        assert_eq!(keys[13], JUPITER_PERPS_PROGRAM_ID.to_string());
+    }
+
+    #[test]
+    fn jupiter_pool_wide_aum_accounts_match_committed_fixture() {
+        let accounts = jupiter_aum_fixture();
+        let keys = accounts
+            .iter()
+            .map(|account| account["pubkey"].as_str().expect("pubkey").to_string())
+            .collect::<Vec<_>>();
+        let expected = JUPITER_POOL_CUSTODIES
+            .iter()
+            .chain(JUPITER_POOL_DOVES_AG_PRICE_ACCOUNTS.iter())
+            .map(Pubkey::to_string)
+            .collect::<Vec<_>>();
+        assert_eq!(keys, expected);
+        assert_eq!(accounts.len(), JUPITER_AUM_REMAINING_LAYOUT.len());
+        assert!(accounts.iter().all(|account| {
+            !account["isSigner"].as_bool().unwrap_or(true)
+                && !account["isWritable"].as_bool().unwrap_or(true)
+        }));
+    }
+
+    #[test]
+    fn jupiter_instruction_data_encodes_on_chain_idl_params() {
+        let amount = 0x0807_0605_0403_0201;
+        let floor = 0x1817_1615_1413_1211;
+        let add = jupiter_add_liquidity2_instruction_data(amount, floor);
+        assert_eq!(add.len(), 25);
+        assert_eq!(&add[..8], &anchor_sighash("add_liquidity2"));
+        assert_eq!(&add[8..16], &amount.to_le_bytes());
+        assert_eq!(&add[16..24], &floor.to_le_bytes());
+        assert_eq!(add[24], 0);
+
+        let remove = jupiter_remove_liquidity2_instruction_data(amount, floor);
+        assert_eq!(remove.len(), 24);
+        assert_eq!(&remove[..8], &anchor_sighash("remove_liquidity2"));
+        assert_eq!(&remove[8..16], &amount.to_le_bytes());
+        assert_eq!(&remove[16..24], &floor.to_le_bytes());
+    }
+
+    #[test]
+    fn jupiter_state_and_outer_layout_are_pinned() {
+        let state = jupiter_state();
+        assert_eq!(state.adapter_id, JUPITER_LP_ADAPTER_ID);
+        assert_eq!(state.protocol_market, JUPITER_POOL);
+        assert_eq!(state.receipt_mint, JLP_MINT);
+
+        let cpi = jupiter_liquidity_cpi_layout();
+        let outer = jupiter_liquidity_outer_account_layout();
+        assert_eq!(cpi.len(), 24);
+        assert!(outer[0].is_writable);
+        assert!(outer[17].is_writable);
+        assert!(!JUPITER_LIQUIDITY_V2_LAYOUT[0].is_writable);
+        assert_eq!(
+            outer
+                .iter()
+                .enumerate()
+                .filter(|(index, spec)| spec.is_writable != cpi[*index].is_writable)
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>(),
+            [0, 17]
+        );
+    }
+
+    #[test]
     fn kamino_usdc_deposit_constants_match_the_committed_fixture() {
         let keys = fixture_pubkeys("depositReserveLiquidityAndObligationCollateralV2");
         assert_eq!(keys[1], KAMINO_USDC_OBLIGATION.to_string());
@@ -3493,6 +4341,95 @@ mod cpi_route_tests {
         assert_ne!(um, deposit);
         assert_ne!(ob, deposit);
         assert_ne!(deposit, withdraw);
+    }
+}
+
+#[cfg(test)]
+mod jupiter_decode_tests {
+    use super::*;
+
+    fn err_msg(error: anchor_lang::error::Error) -> String {
+        error.to_string()
+    }
+
+    fn build_pool(aum_usd: u128, include_usdc: bool) -> Vec<u8> {
+        let custody = if include_usdc {
+            JUPITER_USDC_CUSTODY
+        } else {
+            Pubkey::new_unique()
+        };
+        let mut data = vec![0u8; 8 + 4 + JUPITER_POOL_NAME.len() + 4 + 32 + 16];
+        data[..8].copy_from_slice(&JUPITER_POOL_DISCRIMINATOR);
+        data[8..12].copy_from_slice(&(JUPITER_POOL_NAME.len() as u32).to_le_bytes());
+        let mut offset = 12;
+        data[offset..offset + JUPITER_POOL_NAME.len()].copy_from_slice(JUPITER_POOL_NAME);
+        offset += JUPITER_POOL_NAME.len();
+        data[offset..offset + 4].copy_from_slice(&1u32.to_le_bytes());
+        offset += 4;
+        data[offset..offset + 32].copy_from_slice(custody.as_ref());
+        offset += 32;
+        data[offset..offset + 16].copy_from_slice(&aum_usd.to_le_bytes());
+        data
+    }
+
+    fn build_mint(supply: u64) -> Vec<u8> {
+        let mut data = vec![0u8; SPL_MINT_DECIMALS_OFF + 1];
+        data[SPL_MINT_SUPPLY_OFF..SPL_MINT_SUPPLY_OFF + 8]
+            .copy_from_slice(&supply.to_le_bytes());
+        data[SPL_MINT_DECIMALS_OFF] = 6;
+        data
+    }
+
+    fn build_receipt(owner: Pubkey, amount: u64) -> Vec<u8> {
+        let mut data = vec![0u8; SPL_TOKEN_ACCOUNT_AMOUNT_OFF + 8];
+        data[..32].copy_from_slice(JLP_MINT.as_ref());
+        data[32..64].copy_from_slice(owner.as_ref());
+        data[64..72].copy_from_slice(&amount.to_le_bytes());
+        data
+    }
+
+    #[test]
+    fn pool_decoder_reads_dynamic_borsh_prefix_and_pinned_usdc_custody() {
+        assert_eq!(
+            read_jupiter_pool_aum_usd(&build_pool(750_000_000_000_000, true)).unwrap(),
+            750_000_000_000_000
+        );
+        assert!(err_msg(read_jupiter_pool_aum_usd(&build_pool(1, false)).unwrap_err())
+            .contains("USDC custody"));
+    }
+
+    #[test]
+    fn current_value_uses_jlp_balance_times_aum_over_supply() {
+        let owner = Pubkey::new_unique();
+        let value = jupiter_current_value_from_data(
+            &build_pool(750_000_000_000_000, true),
+            &build_mint(250_000_000_000_000),
+            &build_receipt(owner, 2_000_000),
+            owner,
+        )
+        .unwrap();
+        assert_eq!(value, 6_000_000);
+    }
+
+    #[test]
+    fn jlp_value_rounds_down_and_rejects_zero_supply() {
+        assert_eq!(jupiter_jlp_to_assets(7, 10, 3).unwrap(), 23);
+        assert!(err_msg(jupiter_jlp_to_assets(1, 1, 0).unwrap_err()).contains("supply is zero"));
+    }
+
+    #[test]
+    fn receipt_decoder_rejects_wrong_mint_and_owner() {
+        let owner = Pubkey::new_unique();
+        let mut receipt = build_receipt(owner, 10);
+        receipt[0] ^= 0xff;
+        assert!(err_msg(read_spl_token_account_amount(&receipt, JLP_MINT, owner).unwrap_err())
+            .contains("mint"));
+
+        let receipt = build_receipt(owner, 10);
+        assert!(err_msg(
+            read_spl_token_account_amount(&receipt, JLP_MINT, Pubkey::new_unique()).unwrap_err()
+        )
+        .contains("owned"));
     }
 }
 

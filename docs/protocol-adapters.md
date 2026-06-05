@@ -103,28 +103,50 @@ Open items:
 
 ## Jupiter LP
 
-Yield type: LP or JLP-like receipt position.
+Yield type: USDC deposit into Jupiter Perps JLP.
 
-Required account map:
+Pinned mainnet identities:
 
 ```text
-user signer
-adapter state PDA
-position PDA
-user underlying token account
-adapter token account or authority PDA
-Jupiter pool/state account
-Jupiter vault accounts
-Jupiter program
-token program
-system program
+Jupiter Perps program: PERPHjGBqRHArX4DySjwM6UJHiR3sWAatqfdBS2qQJu
+JLP mint:              27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4
+JLP pool:              5BUwFW4nRbftYTDMbgxykoFWqWHPzahFSNAaaaJtVKsq
+USDC custody:          G18jKKXQwBbrHeiK3C9MRXhkHsLHf7XgCSisykV46EZa
+USDC custody vault:    WzWUoCmtVv7eqAbU3BfKPU3fhLP6CXR8NCJH78UK9VS
 ```
 
-Open items:
+`docs/jupiter-derived-accounts.json` derives and verifies these accounts from
+the deployed Jupiter Perps Anchor IDL plus current mainnet Pool/Custody state.
+`packages/sdk/fixtures/jupiter-cpi-account-plan.json` pins the executable plan.
 
-- Replace `JUPITER_LP_UNDERLYING_REPLACE_WITH_MAINNET`.
-- Replace `JUPITER_LP_RECEIPT_REPLACE_WITH_MAINNET`.
-- Define fair value source for `current_value`.
+Mutation account shape:
+
+1. The 14 formal `addLiquidity2` / `removeLiquidity2` IDL accounts.
+2. Ten undocumented AUM remaining accounts: all five pool custodies followed by
+   their five Doves AG price accounts.
+3. The state PDA signs as Jupiter owner, owns the adapter USDC/JLP ATAs, and
+   records actual minted/burned JLP lamports as shares.
+
+The formal IDL field named `custodyDovesPriceAccount` resolves to the USDC
+Custody's current `dovesAgOracle`, not its legacy `dovesOracle`.
+
+`current_value_cpi` is read-only against `[pool, JLP mint, adapter JLP ATA]`:
+
+```text
+assets = floor(adapterJlpAmount * pool.aumUsd / jlpMintSupply)
+```
+
+Implemented and verified:
+
+- Real `jupiter_deposit` and `jupiter_withdraw` CPI paths.
+- Raw mainnet current-value fixture at slot `424386975`.
+- Scoped direct-adapter mainnet-fork roundtrip at slot `424386975`.
+
+Fork caveat: Jupiter's Doves AG feeds have very short freshness limits, while
+the Windows validator needs roughly 30 seconds to load/JIT the 10 MB Perps
+program and its warped clock later jumps forward. The runner therefore loads raw
+mainnet Doves AG bytes with only `publish_time` forwarded and records every
+before/after timestamp in its evidence JSON.
 
 ## Maple Syrup
 
@@ -187,4 +209,3 @@ For each adapter:
 4. Run current value and assert the value field is nonzero.
 5. Run withdraw and assert shares decrease.
 6. Save transaction signatures/log output in `docs/submission.md`.
-

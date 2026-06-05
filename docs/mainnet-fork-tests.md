@@ -1,10 +1,9 @@
 # Mainnet-Fork Tests
 
 The bounty requires all five adapters to pass against mainnet state. This
-repository now has scoped Kamino USDC and MarginFi USDC live mainnet-fork
-roundtrip passes; the remaining three adapters (Jupiter LP, Maple Syrup, Drift
-Insurance Fund) still need real integrations and live evidence before a full
-bounty claim.
+repository now has scoped Kamino USDC, MarginFi USDC, and Jupiter LP mainnet-fork
+roundtrip passes; Maple Syrup and Drift Insurance Fund still need real
+integrations and live evidence before a full bounty claim.
 
 ## Required Toolchain
 
@@ -165,6 +164,60 @@ Full transaction signatures, compute units, and account fields are recorded in
 preflight above remains an account-map readiness gate that does not start a
 validator.
 
+## Jupiter LP Live Runner
+
+The Jupiter account map is derived from the deployed Perps IDL and committed
+mainnet state. The scoped runner (`scripts/jupiter-mainnet-fork-roundtrip.mjs`)
+loads that plan plus the local adapter SBF, clones the JLP pool/USDC custody, and
+runs:
+
+1. `initialize_adapter`;
+2. `jupiter_deposit` -> Jupiter `addLiquidity2`;
+3. read-only `current_value_cpi`;
+4. full `jupiter_withdraw` -> Jupiter `removeLiquidity2`.
+
+Jupiter's 14-account IDL omits the remaining accounts used by its AUM
+calculation. The committed plan appends all five pool Custodies followed by all
+five Doves AG price accounts, for a 24-account Jupiter mutation CPI.
+
+Windows command sequence used for the passing run:
+
+```powershell
+$sol = "C:\Users\vudat\.local\share\solana\install\releases\2.2.20\solana-release\bin"
+$pt = "$sol\platform-tools-sdk\sbf\dependencies\platform-tools\rust\bin"
+$env:PATH = "$pt;$env:PATH"
+$env:RUSTC = "$pt\rustc.exe"
+& "$pt\cargo.exe" build --release --target sbf-solana-solana --workspace
+$env:MAINNET_RPC_URL = "https://api.mainnet-beta.solana.com"
+$env:JUPITER_FORK_SLOT = "424386975"
+node scripts\jupiter-mainnet-fork-roundtrip.mjs
+```
+
+Passing evidence captured on 2026-06-05:
+
+```text
+forkSlot=424386975
+ROUNDTRIP_OK
+user USDC: 2000000 -> 1000000 -> 1995637
+adapter JLP: 0 -> 295604 -> 0
+adapter totalAssets: 0 -> 997522 -> 997522 -> 0
+adapter totalShares: 0 -> 295604 -> 295604 -> 0
+position shares: 295604 -> 295604 -> 0
+redeemedToUser=995637  finalUserDeltaVsStart=-4363
+```
+
+Fork-specific oracle caveat: Doves AG freshness is shorter than the time needed
+for the Windows validator to load/JIT the 10 MB Perps executable, and the warped
+validator clock later jumps forward. The runner therefore loads the five Doves
+AG accounts from raw mainnet bytes with only their `i64 publish_time` at offset
+`177` forwarded by `60000` seconds. Prices, account owner, and all other bytes
+remain unchanged. Every observed/forwarded timestamp is written to
+`target/jupiter-mainnet-fork-fixtures/evidence.json`; this is not claimed as an
+untouched-oracle snapshot.
+
+Full transaction signatures, compute units, account deltas, state fields, and
+the oracle-fixture caveat are recorded in `docs/submission.md`.
+
 ## Current Readiness Coverage
 
 The default Vitest fork suite is an offline readiness gate, not a fake live pass.
@@ -177,6 +230,8 @@ It currently checks:
   by the fork runner (`init`, refreshes, deposit, withdraw);
 - Kamino withdraw account order is pinned to the klend IDL shape and redeems into
   the adapter vault.
+- Jupiter's formal IDL layout, pool-wide AUM suffix, Doves AG selection, adapter
+  vaults, and current-value formula are pinned by committed fixtures/tests.
 
 Current local command:
 
