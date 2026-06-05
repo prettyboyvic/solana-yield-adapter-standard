@@ -2,8 +2,8 @@
 
 The bounty requires all five adapters to pass against mainnet state. This
 repository now has scoped Kamino USDC, MarginFi USDC, and Jupiter LP mainnet-fork
-roundtrip passes; Maple Syrup and Drift Insurance Fund still need real
-integrations and live evidence before a full bounty claim.
+roundtrip passes; Maple Syrup and Drift Insurance Fund remain blocked/not
+claimable for their separately documented reasons.
 
 ## Required Toolchain
 
@@ -217,6 +217,23 @@ untouched-oracle snapshot.
 
 Full transaction signatures, compute units, account deltas, state fields, and
 the oracle-fixture caveat are recorded in `docs/submission.md`.
+
+## Maple Syrup Gate 1 Status
+
+**Verdict: REQUIRES DESIGN CHANGE.**
+
+- Native Maple/CCIP roundtrip: not runnable as a synchronous Solana mainnet-fork
+  transaction. Native mint/redeem sends a cross-chain message to Ethereum and
+  settles asynchronously.
+- Solana DEX route: technically possible, but out of scope unless the adapter is
+  explicitly re-scoped as market-execution exposure rather than native Maple
+  mint/redeem.
+- Receipt-token custody route: possible only if the adapter underlying changes
+  from USDC to syrupUSDC.
+
+Maple mutation routes remain loud-fail, `CPI_IMPLEMENTED=false`, and no Maple
+live pass is claimed. See
+[`docs/maple/gate1-feasibility.md`](maple/gate1-feasibility.md).
 
 ## Current Readiness Coverage
 

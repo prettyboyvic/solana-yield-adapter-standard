@@ -150,28 +150,33 @@ before/after timestamp in its evidence JSON.
 
 ## Maple Syrup
 
-Yield type: Syrup/Maple yield receipt.
+Gate 1 verdict: **REQUIRES DESIGN CHANGE**. See
+[`docs/maple/gate1-feasibility.md`](maple/gate1-feasibility.md).
 
-Required account map:
+Yield type: syrupUSDC exposure carried as a Chainlink CCIP/CCT token route, not
+a native Solana lending receipt.
+
+Verified Solana account map:
 
 ```text
-user signer
-adapter state PDA
-position PDA
-user underlying token account
-adapter token account or authority PDA
-Maple pool
-Maple receipt mint/account
-Maple program
-token program
-system program
+syrupUSDC mint         AvZZF1YaZDziPY2RCK4oJrRVrbN3mTD9NL24hPeaZeUj
+CCIP Router            Ccip842gzYHhvdDkSyi2YVCoAWPbYJoApMFzSxQroE9C
+CCIP pool config       HrTBpF3LqSxXnjnYdR4htnBLyMHNZ6eNaDZGPundvHbm
+CCIP pool program      787uwTCd8b2ikQP6g9AapMky36PWDv9x1XpC5ZUAfDYc
+syrupUSDC/USDC oracle  CpNyiFt84q66665Kx64bobxZuMgZ2EecrhAJs1HikS2T
+Whirlpool candidate    6fteKNvMdv7tYmBoJHhj1jx6rHcEwC6RdSEmVpyS613J
 ```
 
-Open items:
+The CCIP pool-config account is a token-route configuration PDA, not a Maple
+lending pool. Maple native mint/redeem sends cross-chain messages to Ethereum
+and settles asynchronously, so it cannot satisfy the current adapter ABI's
+atomic `deposit` / `withdraw` and minimum-output guarantees.
 
-- Replace `MAPLE_SYRUP_RECEIPT_REPLACE_WITH_MAINNET`.
-- Pin pool and receipt accounts.
-- Define redemption and share price logic.
+A Solana DEX route may be technically possible, but it would be a separate
+market-execution design for buying and selling Maple exposure, not native Maple
+mint/redeem. A receipt-token custody route would require changing the adapter
+underlying from USDC to syrupUSDC. Until an explicit design is selected, Maple
+mutation routes remain loud-fail and `CPI_IMPLEMENTED=false`.
 
 ## Drift Insurance Fund
 

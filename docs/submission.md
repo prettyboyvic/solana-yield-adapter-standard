@@ -330,8 +330,17 @@ Generic CPI route audit:
   `current_value_cpi`.
 - Maple Syrup and Drift Insurance Fund still do not have real protocol mutation
   paths. Their generic CPI routes remain loud-fail only.
-- Maple Syrup remains a Chainlink CCIP / token-route integration, not a native
-  lending CPI path.
+
+Blocked/not claimable adapter status:
+
+- Drift Gate 2: Layer A/B passed; Layer C is blocked by the confirmed
+  deployed-binary/on-chain-IDL mismatch.
+- Maple Gate 1: **REQUIRES DESIGN CHANGE**. Native mint/redeem is an
+  asynchronous Chainlink CCIP cross-chain route and cannot satisfy the current
+  adapter ABI's atomic deposit/withdraw guarantees. A DEX or receipt-token
+  custody route would be a separate design, not native Maple CPI.
+- Neither adapter has a live mutation pass. Do not claim full five-adapter
+  completion; `CPI_IMPLEMENTED` remains `false`.
 
 Final bounty submission checklist:
 
@@ -345,8 +354,8 @@ Final bounty submission checklist:
   expecting the adapter's live `current_value_cpi` to read it.
 - Capture fork slot, tx signatures, program logs, compute budget, user/vault USDC
   deltas, obligation collateral deltas, and adapter state/position fields.
-- Implement and verify Maple Syrup and Drift Insurance Fund before claiming all
-  five adapters pass.
+- Resolve Maple's async cross-chain design mismatch and Drift's deployed-binary/
+  on-chain-IDL mismatch before claiming all five adapters pass.
 - Submit only from the human Superteam account holder, after confirming regional
   eligibility and the listing is still open.
 
@@ -513,10 +522,11 @@ Maple CCIP Pool      HrTBpF3LqSxXnjnYdR4htnBLyMHNZ6eNaDZGPundvHbm
 Maple syrupUSDC/USDC oracle  CpNyiFt84q66665Kx64bobxZuMgZ2EecrhAJs1HikS2T
 ```
 
-Maple address PENDING is now resolved. Note: Maple syrupUSDC on Solana is a
-**Chainlink CCIP / token route, not a native Solana lending CPI** — so the maple-syrup
-adapter's live integration and mainnet-fork roundtrip are still NOT complete. Only the
-addresses are wired; no CPI was implemented in this patch.
+Maple address PENDING is resolved, but Gate 1 verdict is **REQUIRES DESIGN
+CHANGE**. Maple syrupUSDC on Solana is a Chainlink CCIP / token route, not a
+native Solana lending CPI. Native mint/redeem settles asynchronously across
+chains and cannot satisfy the current adapter ABI's atomic mutation guarantees.
+Only the addresses are wired; no Maple CPI or live pass is claimed.
 
 Sources: Kamino KLend (explorer.solana.com / solscan), MarginFi v2 (docs.marginfi.com),
 Drift v2 (docs.drift.trade program vault addresses), JLP mint (explorer.solana.com),
@@ -559,8 +569,8 @@ Runnable now:
   `scripts/jupiter-mainnet-fork-roundtrip.mjs`.
 
 Still open:
-- Implement and run live mainnet-fork roundtrips for Maple Syrup and Drift
-  Insurance Fund.
+- Resolve Maple's async cross-chain design mismatch and Drift's deployed-binary/
+  on-chain-IDL mismatch. Neither adapter has a claimable live mutation pass.
 - Kamino partial-withdraw collateral conversion remains intentionally guarded;
   the recorded Kamino pass is full-pool withdraw only.
 
@@ -682,9 +692,11 @@ Still required before a final bounty-grade submission (all on the Windows machin
 
 1. Devnet deploy DONE — both programs deployed and confirmed on devnet (see "Devnet deployment evidence").
 2. Devnet registry DONE — registry initialized and all five reference adapter configs registered.
-3. Maple addresses are resolved (mint/router/pool/oracle wired). The Maple integration
-   path is a Chainlink CCIP / token route, not a lending CPI — the live flow is still TODO.
-4. Finish and compile Maple Syrup (CCIP route) and Drift Insurance Fund. Scoped
-   Kamino, MarginFi, and Jupiter LP mainnet-fork roundtrips are recorded, but
-   Kamino partial-withdraw collateral conversion remains intentionally guarded.
+3. Maple addresses are resolved (mint/router/pool/oracle wired), but Gate 1 is
+   **REQUIRES DESIGN CHANGE** because native CCIP settlement is asynchronous and
+   incompatible with the current atomic adapter ABI.
+4. Resolve Maple's design mismatch and Drift's deployed-binary/on-chain-IDL
+   mismatch. Scoped Kamino, MarginFi, and Jupiter LP mainnet-fork roundtrips are
+   recorded, but Maple and Drift remain blocked/not claimable and Kamino
+   partial-withdraw collateral conversion remains intentionally guarded.
 5. Run all five mainnet-fork tests via `npm run fork:run` flow and paste tx/log evidence here.
